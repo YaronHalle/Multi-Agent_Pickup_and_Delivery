@@ -19,7 +19,10 @@ def gen_tasks_and_delays(agents, starts, goals, n_tasks, task_freq, n_delays_per
         tasks.append({'start_time': int(arrival_time), 'start': random.choice(starts), 'goal': random.choice(goals),
                       'task_name': 'task' + str(i)})
 
+
     for i in range(len(agents)):
-        delays[agents[i]['name']] = random.sample(range(delay_interval), n_delays_per_agent)
+        # Yaron (08-11): delays sampling was removed so there won't be any agent's delays
+        #delays[agents[i]['name']] = random.sample(range(delay_interval), n_delays_per_agent)
+        delays[agents[i]['name']] = 0
 
     return tasks, delays

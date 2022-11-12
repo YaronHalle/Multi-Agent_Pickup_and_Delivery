@@ -3,16 +3,20 @@ import yaml
 import json
 import os
 from Simulation.TP_with_recovery import TokenPassingRecovery
+from Simulation.central_algorithm import Central
 import RoothPath
 from Simulation.tasks_and_delays_maker import *
-from Simulation.simulation_new_recovery import SimulationNewRecovery
+#from Simulation.simulation_new_recovery import SimulationNewRecovery
+from Simulation.simulation import Simulation
 import subprocess
 import sys
 
 if __name__ == '__main__':
+
+    # Loading command lines arguments
     #random.seed(1234)
     parser = argparse.ArgumentParser()
-    parser.add_argument('-k', help='Robustness parameter for k-TP', default=None, type=int)
+    parser.add_argument('-k', help='Robustness parameter for k-TP', default=1, type=int)
     parser.add_argument('-p', help='Robustness parameter for p-TP', default=None, type=float)
     parser.add_argument('-pd', help='Expected probability of an agent of being delayed at any time step (p-TP)',
                         default=0.02, type=float)
@@ -26,14 +30,12 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if args.k is None:
-        args.k = 0
-    if args.p is None:
-        args.p = 1
-
+    # Reading config file
     with open(os.path.join(RoothPath.get_root(), 'config.json'), 'r') as json_file:
         config = json.load(json_file)
     args.param = os.path.join(RoothPath.get_root(), os.path.join(config['input_path'], config['input_name']))
+
+    # Setting output file
     args.output = os.path.join(RoothPath.get_root(), 'output.yaml')
 
     # Read from input file
@@ -47,10 +49,10 @@ if __name__ == '__main__':
     obstacles = param['map']['obstacles']
     non_task_endpoints = param['map']['non_task_endpoints']
     agents = param['agents']
+
     if args.not_rand:
         # Old fixed tasks and delays
         tasks = param['tasks']
-        delays = param['delays']
     else:
         # Generate random tasks and delays
         tasks, delays = gen_tasks_and_delays(agents, param['map']['start_locations'], param['map']['goal_locations'],
@@ -61,13 +63,23 @@ if __name__ == '__main__':
         yaml.safe_dump(param, param_file)
 
     # Simulate
-    simulation = SimulationNewRecovery(tasks, agents, delays=delays)
-    tp = TokenPassingRecovery(agents, dimensions, obstacles, non_task_endpoints, simulation,
-                              a_star_max_iter=args.a_star_max_iter, k=args.k,
-                              replan_every_k_delays=False, pd=args.pd, p_max=args.p, p_iter=args.p_iter,
-                              new_recovery=True)
-    while tp.get_completed_tasks() != len(tasks):
-        simulation.time_forward(tp)
+    # Yaron (08-11) removing the delays
+    #simulation = SimulationNewRecovery(tasks, agents, delays=delays)
+
+    # Instantiate a Simulation Module
+    simulation = Simulation(tasks, agents)
+
+    # Instantiate the top-level algorithm
+    centralAlg = Central(agents, dimensions, obstacles, non_task_endpoints, simulation,
+                              a_star_max_iter=args.a_star_max_iter)
+
+    #tp = TokenPassingRecovery(agents, dimensions, obstacles, non_task_endpoints, simulation,
+    #                          a_star_max_iter=args.a_star_max_iter, k=args.k,
+    #                          replan_every_k_delays=False, pd=args.pd, p_max=args.p, p_iter=args.p_iter,
+    #                          new_recovery=False)
+
+    while centralAlg.get_completed_tasks() != len(tasks):
+        simulation.time_forward(centralAlg)
 
     cost = 0
     for path in simulation.actual_paths.values():
