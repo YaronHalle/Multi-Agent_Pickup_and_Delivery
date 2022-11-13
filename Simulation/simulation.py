@@ -8,17 +8,19 @@ import RoothPath
 
 
 class Simulation(object):
-    def __init__(self, tasks, agents):
+    def __init__(self, tasks, agents, solver):
         self.tasks = tasks
         self.agents = agents
-        self.n_delays = 0
-        self.delays = None
+        self.solver = solver
         self.time = 0
         self.start_times = []
-        self.delay_times = []
-        self.actual_paths = {}
-        self.delays_now = 0
+        self.actual_paths = {}  # Tracks the actual paths agent took, regardless of solver decisions
+        self.statistics = {}
+        self.N_completed_tasks = 0
         self.initialize_simulation()
+
+    def simulation_ended(self):
+        return self.N_completed_tasks == len(self.tasks)
 
     def initialize_simulation(self):
         for t in self.tasks:
@@ -63,6 +65,12 @@ class Simulation(object):
             if t['start_time'] == self.time:
                 new.append(t)
         return new
+
+    def move_agents(self):
+        return 0
+
+    def compute_statistics(self):
+        return 0
 
 #
 # if __name__ == '__main__':

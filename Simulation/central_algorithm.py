@@ -4,13 +4,16 @@ author: Giacomo Lodigiani (@Lodz97)
 """
 from math import fabs
 import random
+
+import scipy.optimize
+
 from Simulation.CBS.cbs import CBS, Environment
 #from Simulation.markov_chains import MarkovChainsMaker
 from collections import defaultdict
 
 
 class Central(object):
-    def __init__(self, agents, dimensions, obstacles, non_task_endpoints, simulation, a_star_max_iter=4000):
+    def __init__(self, agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=4000):
         # Assert that number of agents doesn't exceed number of possible non-task endpoints
         if len(agents) > len(non_task_endpoints):
             print('There are more agents than non task endpoints, instance is not well-formed.')
@@ -22,14 +25,7 @@ class Central(object):
         self.tasks = {}
         self.start_tasks_times = {}
         self.completed_tasks_times = {}
-        self.simulation = simulation
         self.a_star_max_iter = a_star_max_iter
-
-        # Collecting tasks for the first time
-        for t in self.simulation.get_new_tasks():
-            self.tasks[t['task_name']] = [t['start'], t['goal']]
-            self.start_tasks_times[t['task_name']] = self.simulation.get_time()
-
         self.agents_to_tasks = {}
         self.completed_tasks = 0
         self.n_replans = 0
@@ -39,6 +35,11 @@ class Central(object):
         self.agent_at_end_path_pos = []
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
+
+        # # Collecting tasks for the first time
+        # for t in self.simulation.get_new_tasks():
+        #     self.tasks[t['task_name']] = [t['start'], t['goal']]
+        #     self.start_tasks_times[t['task_name']] = self.simulation.get_time()
 
     def get_idle_agents(self):
         agents = {}
@@ -225,6 +226,21 @@ class Central(object):
                 self.token['agents'][agent_name] = []
                 for el in path_to_non_task_endpoint[agent_name]:
                     self.token['agents'][agent_name].append([el['x'], el['y']])
+    def timestep(self, time, new_tasks):
+        updated_agents_path = {}
+
+        # In case no new tasks were introduced in this timestep there's no need to make any change to agents' paths
+        if len(new_tasks) == 0:
+            return updated_agents_path
+
+        # Collecting new tasks
+        for t in new_tasks:
+            self.tasks[t['task_name']] = [t['start'], t['goal'], t['task_type']]
+            self.start_tasks_times[t['task_name']] = time
+
+        # Task Assignment
+        #scipy.optimize.linear_sum_assignment()
+
 
     def time_forward(self):
         # Update completed tasks

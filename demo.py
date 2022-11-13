@@ -50,36 +50,49 @@ if __name__ == '__main__':
     non_task_endpoints = param['map']['non_task_endpoints']
     agents = param['agents']
 
+    solver_freq = 1   # every cycle
+    cycles_since_last_solver_run = solver_freq
+
     if args.not_rand:
         # Old fixed tasks and delays
         tasks = param['tasks']
     else:
         # Generate random tasks and delays
-        tasks, delays = gen_tasks_and_delays(agents, param['map']['start_locations'], param['map']['goal_locations'],
-                                             param['n_tasks'], param['task_freq'], param['n_delays_per_agent'])
+        tasks = gen_tasks_and_delays(agents, param['map']['start_locations'], param['map']['goal_locations'],
+                                             param['n_tasks'], param['task_freq'])
     param['tasks'] = tasks
-    param['delays'] = delays
     with open(args.param + config['visual_postfix'], 'w') as param_file:
         yaml.safe_dump(param, param_file)
 
-    # Simulate
-    # Yaron (08-11) removing the delays
-    #simulation = SimulationNewRecovery(tasks, agents, delays=delays)
+    # Instaniate a Solver object
+    solver = Central(agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=args.a_star_max_iter)
 
-    # Instantiate a Simulation Module
-    simulation = Simulation(tasks, agents)
+    # Instantiate a Simulation object
+    simulation = Simulation(tasks, agents, solver)
 
-    # Instantiate the top-level algorithm
-    centralAlg = Central(agents, dimensions, obstacles, non_task_endpoints, simulation,
-                              a_star_max_iter=args.a_star_max_iter)
+    new_tasks = []
+    while not simulation.simulation_ended():
+        # Incrementing simulation time by 1
+        simulation.time = simulation.time + 1
 
-    #tp = TokenPassingRecovery(agents, dimensions, obstacles, non_task_endpoints, simulation,
-    #                          a_star_max_iter=args.a_star_max_iter, k=args.k,
-    #                          replan_every_k_delays=False, pd=args.pd, p_max=args.p, p_iter=args.p_iter,
-    #                          new_recovery=False)
+        # Gathering new tasks introduced in the current time step
+        new_tasks_buffer = simulation.get_new_tasks()
+        for t in new_tasks_buffer:
+            new_tasks.append(t)
 
-    while centralAlg.get_completed_tasks() != len(tasks):
-        simulation.time_forward(centralAlg)
+        # Check if is time to invoke the solver
+        if cycles_since_last_solver_run == solver_freq:
+            solver.timestep(simulation.time, new_tasks)
+            new_tasks.clear()
+            cycles_since_last_solver_run = 0
+
+        cycles_since_last_solver_run = cycles_since_last_solver_run + 1
+
+        # Moving agents according to their current plans
+        simulation.move_agents()
+
+        # Keeping record of benchmark statistics
+        simulation.compute_statistics()
 
     cost = 0
     for path in simulation.actual_paths.values():
