@@ -38,7 +38,6 @@ class Central(object):
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
 
-
         # # Collecting tasks for the first time
         # for t in self.simulation.get_new_tasks():
         #     self.tasks[t['task_name']] = [t['start'], t['goal']]
@@ -282,6 +281,7 @@ class Central(object):
         env = Environment(self.dimensions, self.agents, self.obstacles, a_star_max_iter=1000)
         cbs = CBS(env)
         mapf_solution = cbs.search()
+        self.paths = mapf_solution
         print('stop')
 
     def time_forward(self):

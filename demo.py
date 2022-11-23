@@ -71,8 +71,6 @@ if __name__ == '__main__':
 
     new_tasks = []
     while not simulation.simulation_ended():
-        # Incrementing simulation time by 1
-        simulation.time = simulation.time + 1
 
         # Gathering new tasks introduced in the current time step
         new_tasks_buffer = simulation.get_new_tasks()
@@ -84,6 +82,7 @@ if __name__ == '__main__':
             solver.timestep(simulation.time, new_tasks)
             new_tasks.clear()
             cycles_since_last_solver_run = 0
+            simulation.actual_paths = solver.paths
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 
@@ -93,12 +92,23 @@ if __name__ == '__main__':
         # Keeping record of benchmark statistics
         simulation.compute_statistics()
 
+        # Incrementing simulation time by 1
+        simulation.time = simulation.time + 1
+
+        for task_name in solver.tasks.keys():
+            solver.completed_tasks_times[task_name] = 0
+
+        break
+
     cost = 0
     for path in simulation.actual_paths.values():
         cost = cost + len(path)
+    # output = {'schedule': simulation.actual_paths, 'cost': cost,
+    #           'completed_tasks_times': tp.get_completed_tasks_times(),
+    #           'n_replans': tp.get_n_replans()}
     output = {'schedule': simulation.actual_paths, 'cost': cost,
-              'completed_tasks_times': tp.get_completed_tasks_times(),
-              'n_replans': tp.get_n_replans()}
+              'completed_tasks_times': solver.completed_tasks_times,
+              'n_replans': 0}
     with open(args.output, 'w') as output_yaml:
         yaml.safe_dump(output, output_yaml)
 
