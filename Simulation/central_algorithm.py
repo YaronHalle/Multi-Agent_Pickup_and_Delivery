@@ -3,6 +3,7 @@ Python implementation of Token Passing algorithms to solve MAPD problems with de
 author: Giacomo Lodigiani (@Lodz97)
 """
 from math import fabs
+import numpy as np
 import random
 
 import scipy.optimize
@@ -33,8 +34,10 @@ class Central(object):
         self.occupied_non_task_endpoints = set()
         self.agent_at_end_path = []
         self.agent_at_end_path_pos = []
+        self.paths = {}
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
+
 
         # # Collecting tasks for the first time
         # for t in self.simulation.get_new_tasks():
@@ -226,6 +229,7 @@ class Central(object):
                 self.token['agents'][agent_name] = []
                 for el in path_to_non_task_endpoint[agent_name]:
                     self.token['agents'][agent_name].append([el['x'], el['y']])
+
     def timestep(self, time, new_tasks):
         updated_agents_path = {}
 
@@ -238,9 +242,47 @@ class Central(object):
             self.tasks[t['task_name']] = [t['start'], t['goal'], t['task_type']]
             self.start_tasks_times[t['task_name']] = time
 
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Task Assignment
-        #scipy.optimize.linear_sum_assignment()
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Computing cost of agents to tasks start location assuming no agent-agent collisions
+        agent2task_cost = {}
+        for agent in self.agents:
+            for task in self.tasks:
+                if agent['name'] not in agent2task_cost:
+                    agent2task_cost[agent['name']] = {}
+                agent['goal'] = self.tasks[task][0]
+                env = Environment(self.dimensions, [agent], self.obstacles, a_star_max_iter=1000)
+                path = env.a_star.search(agent['name'])
+                agent2task_cost[agent['name']][task] = len(path)
+                del env
 
+        # Populating cost_mat, rows are tasks and columns are agents
+        cost_mat = []
+        for agent_name in agent2task_cost:
+            for task_name in agent2task_cost[agent_name]:
+                cost_mat.append(agent2task_cost[agent_name][task_name])
+        N_agents = len(self.agents)
+        N_tasks = len(self.tasks)
+        cost_ar = np.array(cost_mat).reshape((N_tasks, N_agents))
+
+        # Computing optimal assignment using the Hungarian algorithm
+        task_id, agent_id = scipy.optimize.linear_sum_assignment(cost_ar)
+
+        #debug
+        print(f'\nTime={time}, Number of Tasks={len(self.tasks)}:')
+        for task_i in range(len(task_id)):
+            task_name = list(self.tasks.keys())[task_id[task_i]]
+            assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
+            print(f'TaskName = {task_name} will be assigned to AgentID = {assigned_agent_name}')
+
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Path Planning using CBS according to task assignment output
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        env = Environment(self.dimensions, self.agents, self.obstacles, a_star_max_iter=1000)
+        cbs = CBS(env)
+        mapf_solution = cbs.search()
+        print('stop')
 
     def time_forward(self):
         # Update completed tasks
