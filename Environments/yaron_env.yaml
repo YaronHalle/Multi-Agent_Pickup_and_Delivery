@@ -1,40 +1,33 @@
 agents:
--   start: [12, 1]
+-   start: [12, 0]
     name: agent0
+-   start: [19, 19]
+    name: agent1
+-   start: [9, 8]
+    name: agent2
+-   start: [3, 3]
+    name: agent3
+-   start: [4, 4]
+    name: agent4
+-   start: [ 17, 3 ]
+    name: agent5
 map:
-    dimensions: [50, 50]
+    dimensions: [20, 50]
     obstacles:
-    - !!python/tuple [9, 11]
-    non_task_endpoints:
+    - !!python/tuple [11, 0]
     - !!python/tuple [12, 1]
-    - !!python/tuple [12, 5]
+    non_task_endpoints:
+    - !!python/tuple [13, 1]
+    - !!python/tuple [13, 0]
+    - !!python/tuple [15, 0]
     - !!python/tuple [12, 7]
     - !!python/tuple [12, 11]
+    - !!python/tuple [19, 49]
     start_locations:
-    -   [2, 1]
-    -   [4, 1]
-    -   [6, 1]
-    -   [8, 1]
-    -   [2, 3]
-    -   [4, 3]
-    -   [6, 3]
-    -   [8, 3]
-    -   [2, 5]
-    -   [4, 5]
-    -   [6, 5]
-    -   [8, 5]
-    -   [2, 7]
-    -   [4, 7]
-    -   [6, 7]
-    -   [8, 7]
-    -   [2, 9]
-    -   [4, 9]
-    -   [6, 9]
-    -   [8, 9]
-    -   [2, 11]
-    -   [4, 11]
-    -   [6, 11]
-    -   [8, 11]
+    -   [0, 0]
+    -   [10,10]
+    -   [15,15]
+    -   [14,14]
     goal_locations:
     -   [12, 2]
     -   [12, 3]
@@ -43,6 +36,7 @@ map:
     -   [12, 8]
     -   [12, 9]
     -   [12, 10]
-n_tasks: 1
+n_tasks: 100
 task_freq: 1
 n_delays_per_agent: 10
+simulation_end_time: 1

@@ -3,7 +3,8 @@ import argparse
 import yaml
 import json
 import os
-from Simulation.TP_with_recovery import TokenPassingRecovery
+#from Simulation.TP_with_recovery import TokenPassingRecovery
+from Simulation.central_algorithm import Task, TaskState
 import RoothPath
 
 
@@ -18,9 +19,13 @@ class Simulation(object):
         self.statistics = {}
         self.N_completed_tasks = 0
         self.initialize_simulation()
+        self.simulation_end_time = None
+        self.free_non_task_endpoints = []
+        self.occupied_non_task_endpoints = []
 
     def simulation_ended(self):
-        return self.N_completed_tasks == len(self.tasks)
+        #return (self.N_completed_tasks == len(self.tasks)) or (self.time >= self.simulation_end_time)
+        return self.time >= self.simulation_end_time
 
     def initialize_simulation(self):
         for t in self.tasks:
@@ -63,7 +68,15 @@ class Simulation(object):
         new = []
         for t in self.tasks:
             if t['start_time'] == self.time:
-                new.append(t)
+                new_task = Task()
+                new_task.task_name = t['task_name']
+                new_task.start_pos = t['start']
+                new_task.goal_pos = t['goal']
+                new_task.task_state = TaskState.PENDING
+                new_task.task_type = t['task_type']
+                new_task.start_time = t['start_time']
+
+                new.append(new_task)
         return new
 
     def move_agents(self):

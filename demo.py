@@ -2,13 +2,14 @@ import argparse
 import yaml
 import json
 import os
-from Simulation.TP_with_recovery import TokenPassingRecovery
-from Simulation.central_algorithm import Central
+#from Simulation.TP_with_recovery import TokenPassingRecovery
+from Simulation.central_algorithm import Central, TaskState
 import RoothPath
 from Simulation.tasks_and_delays_maker import *
 from Simulation.simulation import Simulation
 import subprocess
 import sys
+from Utils.Visualization.visualize import *
 
 if __name__ == '__main__':
 
@@ -23,7 +24,7 @@ if __name__ == '__main__':
                                         'before exceeds the probability threshold (p-TP)',
                         default=1, type=int)
     parser.add_argument('-a_star_max_iter', help='Maximum number of states explored by the low-level algorithm',
-                        default=5000, type=int)
+                        default=1000, type=int)
     parser.add_argument('-slow_factor', help='Slow factor of visualization', default=1, type=int)
     parser.add_argument('-not_rand', help='Use if input has fixed tasks and delays', action='store_true')
 
@@ -48,6 +49,11 @@ if __name__ == '__main__':
     obstacles = param['map']['obstacles']
     non_task_endpoints = param['map']['non_task_endpoints']
     agents = param['agents']
+    simulation_end_time = 100 #param['simulation_end_time']
+
+    # Adding the current_pos field for each agent
+    for agent in agents:
+        agent['current_pos'] = tuple([agent['start'][0], agent['start'][1]])
 
     solver_freq = 1   # every cycle
     cycles_since_last_solver_run = solver_freq
@@ -63,31 +69,34 @@ if __name__ == '__main__':
     with open(args.param + config['visual_postfix'], 'w') as param_file:
         yaml.safe_dump(param, param_file)
 
-    # Instaniate a Solver object
+    # Instantiate a Solver object
     solver = Central(agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=args.a_star_max_iter)
 
     # Instantiate a Simulation object
     simulation = Simulation(tasks, agents, solver)
-
+    simulation.simulation_end_time = simulation_end_time
     new_tasks = []
-    while not simulation.simulation_ended():
 
+    while not simulation.simulation_ended():
         # Gathering new tasks introduced in the current time step
         new_tasks_buffer = simulation.get_new_tasks()
         for t in new_tasks_buffer:
             new_tasks.append(t)
 
-        # Check if is time to invoke the solver
+        # Check if it is time to invoke the solver
         if cycles_since_last_solver_run == solver_freq:
-            solver.timestep(simulation.time, new_tasks)
+            solver.time_step(simulation.time, new_tasks)
             new_tasks.clear()
             cycles_since_last_solver_run = 0
             simulation.actual_paths = solver.paths
 
+        show_initial_state(dimensions, obstacles, non_task_endpoints, agents)
+
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 
-        # Moving agents according to their current plans
-        simulation.move_agents()
+        # Moving agents according to their current plans (if plans exist)
+        #if len(solver.paths) > 0:
+        solver.move_agents(simulation.time)
 
         # Keeping record of benchmark statistics
         simulation.compute_statistics()
@@ -95,11 +104,10 @@ if __name__ == '__main__':
         # Incrementing simulation time by 1
         simulation.time = simulation.time + 1
 
-        for task_name in solver.tasks.keys():
-            solver.completed_tasks_times[task_name] = 0
-
-        break
-
+        # for task_name in solver.tasks.keys():
+        #     solver.completed_tasks_times[task_name] = 15
+    # if len(simulation.actual_paths) == 0:
+    #     print('Warning: simulation.actual_paths is empty')
     cost = 0
     for path in simulation.actual_paths.values():
         cost = cost + len(path)

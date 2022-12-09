@@ -14,9 +14,7 @@ import json
 import os
 import RoothPath
 
-
 Colors = ['orange', 'blue', 'green']
-
 
 class Animation:
     def __init__(self, map, schedule, slow_factor=10):
@@ -115,6 +113,8 @@ class Animation:
         # savefig_kwargs={"pad_inches": 0, "bbox_inches": "tight"})
 
     def show(self):
+        # win_manager = plt.get_current_fig_manager()
+        # win_manager.full_screen_toggle()
         plt.show()
 
     def init_func(self):
@@ -137,7 +137,8 @@ class Animation:
 
         # Make tasks visible at the right time
         for t in map["tasks"]:
-            if t['start_time'] <= i / self.slow_factor + 1 <= self.schedule['completed_tasks_times'][t['task_name']]:
+            #if t['start_time'] <= i / self.slow_factor + 1 <= self.schedule['completed_tasks_times'][t['task_name']]:
+            if False:
                 self.tasks[t['task_name']][0].set_alpha(0.5)
                 self.tasks[t['task_name']][1].set_alpha(0.5)
             else:
@@ -175,6 +176,94 @@ class Animation:
         pos = (posNext - posLast) * t + posLast
         return pos
 
+def show_initial_state(dimensions, obstacles, non_task_endpoints, agents):
+    # self.map = map
+    # self.schedule = schedule
+    # self.slow_factor = slow_factor
+    # self.combined_schedule = {}
+    # self.combined_schedule.update(self.schedule["schedule"])
+
+    aspect = dimensions[0] / dimensions[1]
+
+    fig = plt.figure(frameon=False, figsize=(4 * aspect, 4))
+    ax = fig.add_subplot(111, aspect='equal')
+    fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=None, hspace=None)
+
+    # self.ax.set_frame_on(False)
+
+    patches = []
+    artists = []
+    agents_patches = dict()
+    agent_names = dict()
+    goal_agent_name = dict()
+    tasks = dict()
+    # Create boundary patch
+    xmin = -0.5
+    ymin = -0.5
+    xmax = dimensions[0] - 0.5
+    ymax = dimensions[1] - 0.5
+
+    plt.xlim(xmin, xmax)
+    plt.ylim(ymin, ymax)
+
+    patches.append(Rectangle((xmin, ymin), xmax - xmin, ymax - ymin, facecolor='none', edgecolor='red'))
+    for x in range(dimensions[0]):
+        for y in range(dimensions[1]):
+            patches.append(Rectangle((x - 0.5, y - 0.5), 1, 1, facecolor='none', edgecolor='black'))
+    for o in obstacles:
+        x, y = o[0], o[1]
+        patches.append(Rectangle((x - 0.5, y - 0.5), 1, 1, facecolor='black', edgecolor='black'))
+    for e in non_task_endpoints:
+        x, y = e[0], e[1]
+        patches.append(Circle((x, y), 0.4, facecolor='green', edgecolor='black'))
+
+    # plot_tasks = False
+    # if plot_tasks:
+    #     task_colors = np.random.rand(len(map["tasks"]), 3)
+    #     for t, i in zip(map["tasks"], range(len(map["tasks"]))):
+    #         x_s, y_s = t['start'][0], t['start'][1]
+    #         self.tasks[t['task_name']] = [
+    #             Rectangle((x_s - 0.25, y_s - 0.25), 0.5, 0.5, facecolor=task_colors[i], edgecolor='black', alpha=0)]
+    #         self.patches.append(self.tasks[t['task_name']][0])
+    #     for t, i in zip(map["tasks"], range(len(map["tasks"]))):
+    #         x_g, y_g = t['goal'][0], t['goal'][1]
+    #         self.tasks[t['task_name']].append(
+    #             RegularPolygon((x_g, y_g - 0.05), 3, 0.2, facecolor=task_colors[i], edgecolor='black', alpha=0))
+    #         self.patches.append(self.tasks[t['task_name']][1])
+
+    # Create agents:
+    # Draw goals first
+    #for d, i in zip(agents, range(0, len(agents))):
+    for d in agents:
+        if 'goal' in d:
+            patches.append(
+                Rectangle((d["goal"][0] - 0.25, d["goal"][1] - 0.25), 0.5, 0.5, facecolor=Colors[0], edgecolor='black',
+                          alpha=0.5))
+            name = d["name"]
+            #goal_agent_name[name] = ax.text(d["goal"][0]-0.1, d["goal"][1], name.replace('agent', ''), color='r')
+            goal_agent_name[name] = ax.text(d["goal"][0], d["goal"][1], name.replace('agent', ''), color='r')
+            goal_agent_name[name].set_horizontalalignment('center')
+            goal_agent_name[name].set_verticalalignment('center')
+            artists.append(goal_agent_name[name])
+    #for d, i in zip(agents, range(0, len(agents))):
+    for d in agents:
+        name = d["name"]
+        agents_patches[name] = Circle((d["start"][0], d["start"][1]), 0.3, facecolor=Colors[0], edgecolor='black')
+        agents_patches[name].original_face_color = Colors[0]
+        patches.append(agents_patches[name])
+        agent_names[name] = ax.text(d["start"][0], d["start"][1], name.replace('agent', ''))
+        agent_names[name].set_horizontalalignment('center')
+        agent_names[name].set_verticalalignment('center')
+        artists.append(agent_names[name])
+
+    for p in patches:
+        ax.add_patch(p)
+    for a in artists:
+        ax.add_artist(a)
+
+    # win_manager = plt.get_current_fig_manager()
+    # win_manager.full_screen_toggle()
+    plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -200,8 +289,7 @@ if __name__ == "__main__":
 
     animation = Animation(map, schedule, slow_factor=args.slow_factor)
 
-    #animation.save('TP_k=1_collision.mp4', 1)
-
+    #animation.save('yaron.mpg', 1)
 
     if args.video:
         animation.save(args.video, args.speed)

@@ -127,3 +127,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+Environments/dragon_age_map.yaml_tmp
+Environments/input_warehouse_big_random.yaml_tmp
+Environments/input_warehouse_mid_random.yaml_tmp
+Environments/input_warehouse_small_crowded_random.yaml_tmp
