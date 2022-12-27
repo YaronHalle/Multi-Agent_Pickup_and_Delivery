@@ -519,12 +519,28 @@ class Central(object):
         my_var = False
         if my_var:
             show_initial_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents)
+        for agent_record in agents_for_path_planning:
+            print(agent_record['name'],' is in state = ',agent_record['state'])
+
         # Run CBS search only if there are agents that need to path plan for
         if len(agents_for_path_planning) > 0:
             env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, None, self.a_star_max_iter)
             cbs = CBS(env)
             mapf_solution = cbs.search()
-            self.paths = mapf_solution
+
+            # Updating paths only for agents with re-calculated paths
+            for agent_record in agents_for_path_planning:
+                agent_name = agent_record['name']
+                self.paths[agent_name] = mapf_solution[agent_name]
+
+            print('paths count = ', len(self.paths))
+            for agent_name in self.paths:
+                print(agent_name)
+
+            # Reseting each affected agent's path index
+            for agent in agents_for_path_planning:
+                agent['current_path_index'] = 0
+
             if len(self.paths) != len(agents_for_path_planning):
                 print('Inconsistent number of planned agents')
             if len(self.paths) == 0:

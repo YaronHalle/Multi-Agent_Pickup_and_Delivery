@@ -90,7 +90,7 @@ if __name__ == '__main__':
             cycles_since_last_solver_run = 0
             simulation.actual_paths = solver.paths
 
-        show_initial_state(dimensions, obstacles, non_task_endpoints, agents)
+        #how_initial_state(dimensions, obstacles, non_task_endpoints, agents)
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 

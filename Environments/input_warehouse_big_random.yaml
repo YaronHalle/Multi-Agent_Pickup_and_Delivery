@@ -695,6 +695,6 @@ map:
     -   [24, 33]
     -   [24, 34]
     -   [24, 36]
-n_tasks: 100
+n_tasks: 30
 task_freq: 1
 n_delays_per_agent: 10
