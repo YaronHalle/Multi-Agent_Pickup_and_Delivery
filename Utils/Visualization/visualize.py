@@ -3,6 +3,8 @@ import yaml
 import matplotlib
 # matplotlib.use("Agg")
 from matplotlib.patches import Circle, Rectangle, Arrow, RegularPolygon
+
+from Simulations.classes import *
 from matplotlib.collections import PatchCollection
 import matplotlib.pyplot as plt
 import numpy as np
@@ -176,7 +178,7 @@ class Animation:
         pos = (posNext - posLast) * t + posLast
         return pos
 
-def show_initial_state(dimensions, obstacles, non_task_endpoints, agents):
+def show_current_state(dimensions, obstacles, non_task_endpoints, agents, time):
     # self.map = map
     # self.schedule = schedule
     # self.slow_factor = slow_factor
@@ -185,11 +187,16 @@ def show_initial_state(dimensions, obstacles, non_task_endpoints, agents):
 
     aspect = dimensions[0] / dimensions[1]
 
-    fig = plt.figure(frameon=False, figsize=(4 * aspect, 4))
+    fig = plt.figure(frameon=False, figsize=(20 * aspect, 20))
     ax = fig.add_subplot(111, aspect='equal')
-    fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=None, hspace=None)
+    #fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=None, hspace=None)
 
     # self.ax.set_frame_on(False)
+    agent_edge_color = dict()
+    agent_edge_color[AgentState.IDLE] = 'black'
+    agent_edge_color[AgentState.FREE] = 'black'
+    agent_edge_color[AgentState.ENROUTE] = 'green'
+    agent_edge_color[AgentState.BUSY] = 'red'
 
     patches = []
     artists = []
@@ -217,38 +224,22 @@ def show_initial_state(dimensions, obstacles, non_task_endpoints, agents):
         x, y = e[0], e[1]
         patches.append(Circle((x, y), 0.4, facecolor='green', edgecolor='black'))
 
-    # plot_tasks = False
-    # if plot_tasks:
-    #     task_colors = np.random.rand(len(map["tasks"]), 3)
-    #     for t, i in zip(map["tasks"], range(len(map["tasks"]))):
-    #         x_s, y_s = t['start'][0], t['start'][1]
-    #         self.tasks[t['task_name']] = [
-    #             Rectangle((x_s - 0.25, y_s - 0.25), 0.5, 0.5, facecolor=task_colors[i], edgecolor='black', alpha=0)]
-    #         self.patches.append(self.tasks[t['task_name']][0])
-    #     for t, i in zip(map["tasks"], range(len(map["tasks"]))):
-    #         x_g, y_g = t['goal'][0], t['goal'][1]
-    #         self.tasks[t['task_name']].append(
-    #             RegularPolygon((x_g, y_g - 0.05), 3, 0.2, facecolor=task_colors[i], edgecolor='black', alpha=0))
-    #         self.patches.append(self.tasks[t['task_name']][1])
-
     # Create agents:
     # Draw goals first
-    #for d, i in zip(agents, range(0, len(agents))):
     for d in agents:
         if 'goal' in d:
             patches.append(
                 Rectangle((d["goal"][0] - 0.25, d["goal"][1] - 0.25), 0.5, 0.5, facecolor=Colors[0], edgecolor='black',
                           alpha=0.5))
             name = d["name"]
-            #goal_agent_name[name] = ax.text(d["goal"][0]-0.1, d["goal"][1], name.replace('agent', ''), color='r')
             goal_agent_name[name] = ax.text(d["goal"][0], d["goal"][1], name.replace('agent', ''), color='r')
             goal_agent_name[name].set_horizontalalignment('center')
             goal_agent_name[name].set_verticalalignment('center')
             artists.append(goal_agent_name[name])
-    #for d, i in zip(agents, range(0, len(agents))):
     for d in agents:
         name = d["name"]
-        agents_patches[name] = Circle((d["start"][0], d["start"][1]), 0.3, facecolor=Colors[0], edgecolor='black')
+        agent_state = d['state']
+        agents_patches[name] = Circle((d["start"][0], d["start"][1]), 0.3, linewidth=2, facecolor=Colors[0], edgecolor=agent_edge_color[agent_state])
         agents_patches[name].original_face_color = Colors[0]
         patches.append(agents_patches[name])
         agent_names[name] = ax.text(d["start"][0], d["start"][1], name.replace('agent', ''))
@@ -261,9 +252,21 @@ def show_initial_state(dimensions, obstacles, non_task_endpoints, agents):
     for a in artists:
         ax.add_artist(a)
 
-    # win_manager = plt.get_current_fig_manager()
-    # win_manager.full_screen_toggle()
-    plt.show()
+    #fig.patch.set_facecolor('white')
+    #win_manager = plt.get_current_fig_manager()
+    #win_manager.full_screen_toggle()
+    #win_manager.frame.Maximize(True)
+    #win_manager.window.showMaximized()
+    #win_manager.window.state('zoomed')
+    #win_manager.resize(*win_manager.window.maxsize())
+    figure_title = 'Time = ' + str(time)
+
+    #plt.suptitle(figure_title)
+    #plt.get_current_fig_manager().set_window_title(figure_title)
+    filename = './Figures/' + figure_title + '.png'
+    plt.savefig(filename)
+    plt.close()
+    #plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

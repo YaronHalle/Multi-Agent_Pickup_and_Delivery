@@ -3,47 +3,19 @@ Python implementation of Token Passing algorithms to solve MAPD problems with de
 author: Giacomo Lodigiani (@Lodz97)
 """
 from math import fabs
-from enum import Enum
+from Simulations.classes import *
 import numpy as np
 import random
 from copy import deepcopy
 import scipy.optimize
 from Utils.Visualization.visualize import *
-from Simulation.CBS.cbs import CBS, Environment
+from Simulations.CBS.cbs import CBS, Environment
 from collections import defaultdict
 
 
 def is_agent_at_goal(agent_record):
     return agent_record['current_pos'][0] == agent_record['goal'][0] and \
         agent_record['current_pos'][1] == agent_record['goal'][1]
-
-class AgentState(Enum):
-    IDLE = 0
-    FREE = 1
-    ENROUTE = 2
-    BUSY = 3
-
-
-class TaskState(Enum):
-    PENDING = 0
-    ASSIGNED = 1
-    EXECUTED = 2
-    COMPLETED = 3
-
-
-class Agent(object):
-    def __init__(self):
-        self.agent_name
-
-
-class Task(object):
-    def __init__(self):
-        self.task_name = None
-        self.start_pos = None
-        self.goal_pos = None
-        self.task_state = None
-        self.task_type = None
-        self.start_time = None
 
 
 class Central(object):
@@ -57,8 +29,8 @@ class Central(object):
         self.dimensions = dimensions
         self.obstacles = set(obstacles)
         self.non_task_endpoints = deepcopy(non_task_endpoints)
-        self.occupied_non_task_endpoints = set()
-        self.free_non_task_endpoints = deepcopy(non_task_endpoints)
+        self.occupied_non_task_endpoints = []
+        self.free_non_task_endpoints = deepcopy(self.non_task_endpoints)
         self.tasks = {}
         self.start_tasks_times = {}
         self.completed_tasks_times = {}
@@ -86,11 +58,14 @@ class Central(object):
             agent_record['current_path_index'] = 0
 
             # Determining whether agent state is IDLE or FREE according to its initial position
-            if agent_record['current_pos'] in self.non_task_endpoints:
+            agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
+            if agent_pos in self.non_task_endpoints:
                 # Agent rests at some non-task endpoint and should be referred as IDLE
                 agent_record['state'] = AgentState.IDLE
-                self.free_non_task_endpoints.remove(agent_record['current_pos'])
-                self.occupied_non_task_endpoints.add(agent_record['current_pos'])
+                #self.free_non_task_endpoints.remove(agent_record['current_pos'])
+                #self.occupied_non_task_endpoints.append(agent_record['current_pos'])
+                self.free_non_task_endpoints.remove(agent_pos)
+                self.occupied_non_task_endpoints.append(agent_pos)
             else:
                 # Agent is not populating any endpoint and thus is FREE
                 agent_record['state'] = AgentState.FREE
@@ -267,11 +242,6 @@ class Central(object):
             # Reseting agent's trajectory index since a path is about to re-computed
             agent_record['current_path_index'] = 0
 
-        # Update the bookkeeping of free/occupied non-task endpoints
-        for endpoint in currently_assigned_endpoints:
-            self.free_non_task_endpoints.remove(endpoint)
-            self.occupied_non_task_endpoints.add(endpoint)
-
     def go_to_closest_non_task_endpoint(self, agent_name, agent_pos, all_idle_agents, all_delayed_agents):
         closest_non_task_endpoint = self.get_closest_non_task_endpoint(agent_pos)
         moving_obstacles_agents = self.get_moving_obstacles_agents(self.token['agents'], 0)
@@ -345,7 +315,7 @@ class Central(object):
                 agent['current_pos'] = tuple([agent_trajectory[traj_index]['x'],
                                               agent_trajectory[traj_index]['y']])
             else:
-                print('Error: trying to move agent to non existing trajectory element')
+                print('Warning: trying to move agent to non existing trajectory element')
             # Updating 'start' property so future CBS searches will take into account
             # the agent's current position
             agent['start'][0] = agent['current_pos'][0]
@@ -359,7 +329,9 @@ class Central(object):
                 # Updating status for agent's state transition FREE -> IDLE
                 if agent['state'] == AgentState.FREE:
                     agent['state'] = AgentState.IDLE
+                    self.free_non_task_endpoints.remove(agent['goal'])
                     del agent['goal']
+                    del self.paths[agent_name]
 
                 # Updating status for agent's state transition BUSY -> FREE
                 if agent['state'] == AgentState.BUSY:
@@ -450,32 +422,42 @@ class Central(object):
             # Updating the assigned and unassigned agents lists
             for task_i in range(len(task_id)):
                 # Retrieving assigned task name and setting its status to ASSIGNED (in case it previously was PENDING)
-                task_name = list(self.tasks.keys())[task_id[task_i]]
-                self.tasks[task_name].task_state == TaskState.ASSIGNED
+                task_name = list(tasks_to_assign)[task_id[task_i]].task_name
+                # Setting the new assigned task state to ASSIGNED
+                self.tasks[task_name].task_state = TaskState.ASSIGNED
 
                 # Updating the assigned agent goal and status
                 assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
                 agent_record = self.agents_dict[assigned_agent_name]
                 agent_record['goal'] = self.tasks[task_name].start_pos
-                agent_record['task_name'] = task_name
-                agent_record['state'] = AgentState.ENROUTE
-                # Reseting agent's trajectory index since a path is about to re-computed
-                agent_record['current_path_index'] = 0
 
-                # Updating status of agent's endpoint it might have just released
-                agent_pos = agent_record['current_pos']
-                if agent_pos in self.occupied_non_task_endpoints:
-                    self.occupied_non_task_endpoints.remove(agent_pos)
+                # Checking if agent was previously IDLE and therefore its endpoint should be released
+                if agent_record['state'] == AgentState.IDLE:
+                    agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
                     self.free_non_task_endpoints.append(agent_pos)
+                agent_record['state'] = AgentState.ENROUTE
+                # Checking if the assigned agent was originally assigned to a different task. If so, the previous
+                # task becomes PENDING.
+                if 'task_name' in agent_record.keys():
+                    prev_task_name = agent_record['task_name']
+                    if task_name != prev_task_name and self.tasks_to_agents[prev_task_name] == assigned_agent_name:
+                        self.tasks[prev_task_name].task_state = TaskState.PENDING
+                        del self.tasks_to_agents[prev_task_name]
+                agent_record['task_name'] = task_name
+                self.agents_to_tasks[assigned_agent_name] = task_name
+
+                # Reseting agent's trajectory index since a path is about to be re-computed
+                agent_record['current_path_index'] = 0
 
                 # Check if this task was previously assigned to a different former agent. If so, change
                 # the former agent's status to FREE and make additional updates for correct bookkeeping.
                 if task_name in self.tasks_to_agents and self.tasks_to_agents[task_name] != assigned_agent_name:
                     prev_assigned_agent_name = self.tasks_to_agents[task_name]
                     prev_agent_record = self.agents_dict[prev_assigned_agent_name]
+
                     prev_agent_record['state'] == AgentState.FREE
                     if 'goal' in prev_agent_record.keys():
-                        print('Warning! found a goal property where there souldn\'t be') #del prev_agent_record['goal']
+                        print('Warning! found a goal property where there souldn\'t be')
                     del self.agents_to_tasks[prev_assigned_agent_name]
                     del self.tasks_to_agents[task_name]
 
@@ -493,12 +475,8 @@ class Central(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Assign non-task endpoints to the free agents that weren't assigned tasks
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # Plotting for debug
-        #show_initial_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents)
-
         if len(self.unassigned_agents) > 0:
-            # Check if there are unassigned agents that are already IDLE (meaning they are
-            # already located in some endpoint) and there's no need to assign them
+            # Do not consider endpoints assignments for an IDLE agent (meaning it is already located in some endpoint)
             temp_unassigned_agents = deepcopy(self.unassigned_agents)
             for agent_name in temp_unassigned_agents:
                 agent_record = self.agents_dict[agent_name]
@@ -516,41 +494,62 @@ class Central(object):
         # non-task endpoint location.
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Plotting for debug
-        my_var = False
-        if my_var:
-            show_initial_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents)
-        for agent_record in agents_for_path_planning:
-            print(agent_record['name'],' is in state = ',agent_record['state'])
+        #show_current_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents)
+        for agent_record in self.agents:
+            print(agent_record['name'], ' is in state = ', agent_record['state'])
 
         # Run CBS search only if there are agents that need to path plan for
         if len(agents_for_path_planning) > 0:
-            env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, None, self.a_star_max_iter)
+            # Collecting all the agents that are currently moving and weren't designated for re-path planning. These
+            # agents would be considered as "moving obstacles" to avoid during the following CBS search.
+            moving_obstacles = self.get_currently_moving_agents(agents_for_path_planning)
+
+            env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, moving_obstacles, self.a_star_max_iter)
             cbs = CBS(env)
             mapf_solution = cbs.search()
+
+            if len(mapf_solution) == 0:
+                print('Warning! no CBS solution')
 
             # Updating paths only for agents with re-calculated paths
             for agent_record in agents_for_path_planning:
                 agent_name = agent_record['name']
                 self.paths[agent_name] = mapf_solution[agent_name]
 
-            print('paths count = ', len(self.paths))
-            for agent_name in self.paths:
-                print(agent_name)
-
             # Reseting each affected agent's path index
             for agent in agents_for_path_planning:
                 agent['current_path_index'] = 0
 
-            if len(self.paths) != len(agents_for_path_planning):
-                print('Inconsistent number of planned agents')
+            # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            # Debug Printing
+            # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+            print('paths count = ', len(self.paths))
             if len(self.paths) == 0:
                 print('Error: No CBS solution')
+            for task_name in self.tasks_to_agents:
+                print(task_name, ' --> ', self.tasks_to_agents[task_name])
+            print('# free endpoints = ', len(self.free_non_task_endpoints))
 
-        # print(f'\nTime={time}, Number of Tasks={len(self.tasks)}:')
-        # for task_i in range(len(task_id)):
-        #     task_name = list(self.tasks.keys())[task_id[task_i]]
-        #     assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
-        #     print(f'TaskName = {task_name} will be assigned to AgentID = {assigned_agent_name}')
+    def get_currently_moving_agents(self, agents_for_path_planning):
+        # Identify all agents that weren't considered for path planning and are currently moving (Non IDLE agents)
+        moving_obstacles = {}
+        for agent_record in self.agents:
+            if agent_record in agents_for_path_planning:
+                continue
+            if agent_record['state'] != AgentState.IDLE:
+                # Add all future agents path steps to the moving obstacles data structure
+                agent_trajectory = self.paths[agent_record['name']]
+                pos_index = agent_record['current_path_index']
+                for k in range(pos_index, len(agent_trajectory)):
+                    x = agent_trajectory[k]['x']
+                    y = agent_trajectory[k]['y']
+                    # pos_index is subtracted to enforce current step to be regarded as "0" time in respect to rest of agents
+                    # that are about to be re-planned.
+                    t = agent_trajectory[k]['t'] - pos_index
+                    temp_tuple = (x, y, t)
+                    #
+                    moving_obstacles[temp_tuple] = agent_record['name']
+        return moving_obstacles
 
     def get_idle_agents(self):
         idle_agents = {}

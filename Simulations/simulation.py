@@ -4,7 +4,7 @@ import yaml
 import json
 import os
 #from Simulation.TP_with_recovery import TokenPassingRecovery
-from Simulation.central_algorithm import Task, TaskState
+from Simulations.central_algorithm import Task, TaskState
 import RoothPath
 
 
@@ -64,6 +64,44 @@ class Simulation(object):
     def get_actual_paths(self):
         return self.actual_paths
 
+    def generate_new_tasks(self, prev_tasks, starts, goals, n_tasks):
+        new_tasks = []
+        maximal_attemps = 100
+        n_tasks_so_far = len(prev_tasks)
+        taken_squares = set()
+        for task in prev_tasks.values():
+            if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
+                taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
+                taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+            if task.task_state == TaskState.EXECUTED:
+                taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+
+        for i in range(n_tasks):
+            next_start = random.choice(starts)
+            next_goal = random.choice(goals)
+
+            current_attempt = 0
+            while (tuple([next_start[0], next_start[1]]) in taken_squares or
+                    tuple([next_goal[0], next_goal[1]]) in taken_squares) and \
+                    current_attempt < maximal_attemps:
+                next_start = random.choice(starts)
+                next_goal = random.choice(goals)
+                current_attempt += 1
+
+            taken_squares.add(tuple([next_start[0], next_start[1]]))
+            taken_squares.add(tuple([next_goal[0], next_goal[1]]))
+
+            new_task = Task()
+            new_task.task_name = 'task' + str(n_tasks_so_far + i)
+            new_task.start_pos = next_start
+            new_task.goal_pos = next_goal
+            new_task.task_state = TaskState.PENDING
+            new_task.task_type = 0
+            new_task.start_time = int(self.time)
+            new_tasks.append(new_task)
+
+        return new_tasks
+
     def get_new_tasks(self):
         new = []
         for t in self.tasks:
@@ -83,8 +121,18 @@ class Simulation(object):
         return 0
 
     def compute_statistics(self):
-        return 0
+        counters_dict = {}
+        counters_dict[TaskState.PENDING] = 0
+        counters_dict[TaskState.ASSIGNED] = 0
+        counters_dict[TaskState.EXECUTED] = 0
+        counters_dict[TaskState.COMPLETED] = 0
+        for task in self.solver.tasks.values():
+            counters_dict[task.task_state] += 1
 
+        print("Pending tasks counter = ", counters_dict[TaskState.PENDING])
+        print("Assigned tasks counter = ", counters_dict[TaskState.ASSIGNED])
+        print("Executed tasks counter = ", counters_dict[TaskState.EXECUTED])
+        print("Completed tasks counter = ", counters_dict[TaskState.COMPLETED])
 #
 # if __name__ == '__main__':
 #     parser = argparse.ArgumentParser()

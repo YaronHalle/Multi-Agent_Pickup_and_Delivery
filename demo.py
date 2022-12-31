@@ -2,11 +2,11 @@ import argparse
 import yaml
 import json
 import os
-#from Simulation.TP_with_recovery import TokenPassingRecovery
-from Simulation.central_algorithm import Central, TaskState
+from Simulations.simulation import Simulation
+from Simulations.central_algorithm import Central, TaskState
 import RoothPath
-from Simulation.tasks_and_delays_maker import *
-from Simulation.simulation import Simulation
+from Simulations.tasks_and_delays_maker import *
+
 import subprocess
 import sys
 from Utils.Visualization.visualize import *
@@ -24,7 +24,7 @@ if __name__ == '__main__':
                                         'before exceeds the probability threshold (p-TP)',
                         default=1, type=int)
     parser.add_argument('-a_star_max_iter', help='Maximum number of states explored by the low-level algorithm',
-                        default=1000, type=int)
+                        default=1000000000, type=int)
     parser.add_argument('-slow_factor', help='Slow factor of visualization', default=1, type=int)
     parser.add_argument('-not_rand', help='Use if input has fixed tasks and delays', action='store_true')
 
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     obstacles = param['map']['obstacles']
     non_task_endpoints = param['map']['non_task_endpoints']
     agents = param['agents']
-    simulation_end_time = 100 #param['simulation_end_time']
+    simulation_end_time = 200 #param['simulation_end_time']
 
     # Adding the current_pos field for each agent
     for agent in agents:
@@ -68,6 +68,34 @@ if __name__ == '__main__':
     param['tasks'] = tasks
     with open(args.param + config['visual_postfix'], 'w') as param_file:
         yaml.safe_dump(param, param_file)
+    # ----------------------------------------------------------------------
+    # Save data to JSON file
+    # ----------------------------------------------------------------------
+    if False:
+        data = dict()
+        data['agents'] = agents
+        data['dimensions'] = dimensions
+        data['obstacles'] = obstacles
+        data['non_task_endpoints'] = non_task_endpoints
+        data['tasks'] = tasks
+        with open("data_file.json", "w") as write_file:
+            json.dump(data, write_file)
+
+    # ----------------------------------------------------------------------
+    # Loading data from JSON file
+    # ----------------------------------------------------------------------
+    if False:
+        with open("data_file.json", "r") as read_file:
+            data = json.load(read_file)
+            agents = data['agents']
+            dimensions = data['dimensions']
+            obstacles = []
+            for obstacle in data['obstacles']:
+                obstacles.append(tuple([obstacle[0], obstacle[1]]))
+            non_task_endpoints = []
+            for endpoint in data['non_task_endpoints']:
+                non_task_endpoints.append(tuple([endpoint[0], endpoint[1]]))
+            tasks = data['tasks']
 
     # Instantiate a Solver object
     solver = Central(agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=args.a_star_max_iter)
@@ -78,8 +106,11 @@ if __name__ == '__main__':
     new_tasks = []
 
     while not simulation.simulation_ended():
+        print('---------------------- Time = ', simulation.time, ' ----------------------')
+
         # Gathering new tasks introduced in the current time step
-        new_tasks_buffer = simulation.get_new_tasks()
+        #new_tasks_buffer = simulation.get_new_tasks()
+        new_tasks_buffer = simulation.generate_new_tasks(solver.tasks, param['map']['start_locations'], param['map']['goal_locations'], 2)
         for t in new_tasks_buffer:
             new_tasks.append(t)
 
@@ -90,12 +121,11 @@ if __name__ == '__main__':
             cycles_since_last_solver_run = 0
             simulation.actual_paths = solver.paths
 
-        #how_initial_state(dimensions, obstacles, non_task_endpoints, agents)
+        show_current_state(dimensions, obstacles, non_task_endpoints, agents, simulation.time)
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 
         # Moving agents according to their current plans (if plans exist)
-        #if len(solver.paths) > 0:
         solver.move_agents(simulation.time)
 
         # Keeping record of benchmark statistics
@@ -108,6 +138,8 @@ if __name__ == '__main__':
         #     solver.completed_tasks_times[task_name] = 15
     # if len(simulation.actual_paths) == 0:
     #     print('Warning: simulation.actual_paths is empty')
+    print('---------------------- End of Simulation  ----------------------')
+
     cost = 0
     for path in simulation.actual_paths.values():
         cost = cost + len(path)

@@ -105,6 +105,6 @@ map:
     -   [12, 8]
     -   [12, 9]
     -   [12, 10]
-n_tasks: 6
-task_freq: 5
+n_tasks: 20
+task_freq: 3
 n_delays_per_agent: 10

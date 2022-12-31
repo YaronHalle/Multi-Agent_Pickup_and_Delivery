@@ -48,10 +48,6 @@ class AStar:
 
         while open_set and (self.max_iter == -1 or self.iter < self.max_iter):
             self.iter = self.iter + 1
-            if self.iter == self.max_iter:
-                print('Low level A* - Maximum iteration reached')
-            #temp_dict = {open_item: f_score.setdefault(open_item, float("inf")) for open_item in open_set}
-            #current = min(temp_dict, key=temp_dict.get)
             current = heapq.heappop(heap)[3]
 
             if self.is_at_goal(current, agent_name):
