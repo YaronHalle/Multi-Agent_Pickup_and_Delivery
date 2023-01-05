@@ -6,6 +6,7 @@ from Simulations.simulation import Simulation
 from Simulations.central_algorithm import Central, TaskState
 import RoothPath
 from Simulations.tasks_and_delays_maker import *
+from Simulations.task_generator import *
 
 import subprocess
 import sys
@@ -72,19 +73,22 @@ if __name__ == '__main__':
     # Save data to JSON file
     # ----------------------------------------------------------------------
     if False:
+        tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'])
         data = dict()
         data['agents'] = agents
         data['dimensions'] = dimensions
         data['obstacles'] = obstacles
         data['non_task_endpoints'] = non_task_endpoints
-        data['tasks'] = tasks
+        data['sampled_starts_positions'] = tg.next_starts
+        data['sampled_goals_positions'] = tg.next_goals
+        #data['tasks'] = tasks
         with open("data_file.json", "w") as write_file:
             json.dump(data, write_file)
 
     # ----------------------------------------------------------------------
     # Loading data from JSON file
     # ----------------------------------------------------------------------
-    if False:
+    if True:
         with open("data_file.json", "r") as read_file:
             data = json.load(read_file)
             agents = data['agents']
@@ -95,7 +99,15 @@ if __name__ == '__main__':
             non_task_endpoints = []
             for endpoint in data['non_task_endpoints']:
                 non_task_endpoints.append(tuple([endpoint[0], endpoint[1]]))
-            tasks = data['tasks']
+            #tasks = data['tasks']
+            sampled_starts_positions = []
+            for next_start in data['sampled_starts_positions']:
+                sampled_starts_positions.append(tuple([next_start[0], next_start[1]]))
+            sampled_goals_positions = []
+            for next_goal in data['sampled_goals_positions']:
+                sampled_goals_positions.append(tuple([next_goal[0], next_goal[1]]))
+            tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'],
+                               sampled_starts_positions, sampled_goals_positions)
 
     # Instantiate a Solver object
     solver = Central(agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=args.a_star_max_iter)
@@ -110,7 +122,9 @@ if __name__ == '__main__':
 
         # Gathering new tasks introduced in the current time step
         #new_tasks_buffer = simulation.get_new_tasks()
-        new_tasks_buffer = simulation.generate_new_tasks(solver.tasks, param['map']['start_locations'], param['map']['goal_locations'], 2)
+        #new_tasks_buffer = simulation.generate_new_tasks(solver.tasks, param['map']['start_locations'], param['map']['goal_locations'], 2)
+        new_tasks_buffer = tg.generate_new_tasks(solver.tasks, 2, simulation.time)
+
         for t in new_tasks_buffer:
             new_tasks.append(t)
 
@@ -121,7 +135,7 @@ if __name__ == '__main__':
             cycles_since_last_solver_run = 0
             simulation.actual_paths = solver.paths
 
-        show_current_state(dimensions, obstacles, non_task_endpoints, agents, simulation.time)
+        #show_current_state(dimensions, obstacles, non_task_endpoints, agents, simulation.time)
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 
