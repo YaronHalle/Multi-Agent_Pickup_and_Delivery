@@ -14,6 +14,7 @@ class TaskGenerator(object):
         self.n_samples = 10000
         self.starts = starts
         self.goals = goals
+        self.taken_squares = set()
         if sampled_starts is None:
             self.opmode = GenerationScheme.RANDOM
             self.next_starts = []
@@ -33,29 +34,35 @@ class TaskGenerator(object):
 
     def get_next_samples(self):
         self.next_start_sample_index += 1
-        self.next_goal_sample_index += 1
         next_start = self.next_starts[self.next_start_sample_index]
+        while next_start in self.taken_squares:
+            self.next_start_sample_index += 1
+            next_start = self.next_starts[self.next_start_sample_index]
+
+        self.next_goal_sample_index += 1
         next_goal = self.next_goals[self.next_goal_sample_index]
+        while next_goal in self.taken_squares:
+            self.next_goal_sample_index += 1
+            next_goal = self.next_goals[self.next_goal_sample_index]
+
         return next_start, next_goal
 
     def generate_new_tasks(self, current_tasks, n_tasks, current_time):
         new_tasks = []
         n_tasks_so_far = len(current_tasks)
-        taken_squares = set()
+        self.taken_squares.clear()
         for task in current_tasks.values():
             if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
-                taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
-                taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+                self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
+                self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
             if task.task_state == TaskState.EXECUTED:
-                taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+                self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
 
         for i in range(n_tasks):
             next_start, next_goal = self.get_next_samples()
-            while next_start in taken_squares or next_goal in taken_squares:
-                next_start, next_goal = self.get_next_samples()
 
-            taken_squares.add(next_start)
-            taken_squares.add(next_goal)
+            self.taken_squares.add(next_start)
+            self.taken_squares.add(next_goal)
 
             new_task = Task()
             new_task.task_name = 'task' + str(n_tasks_so_far + i)

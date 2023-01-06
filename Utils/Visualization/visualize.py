@@ -178,7 +178,7 @@ class Animation:
         pos = (posNext - posLast) * t + posLast
         return pos
 
-def show_current_state(dimensions, obstacles, non_task_endpoints, agents, time):
+def show_current_state(dimensions, obstacles, non_task_endpoints, agents, tasks, time):
     # self.map = map
     # self.schedule = schedule
     # self.slow_factor = slow_factor
@@ -203,7 +203,6 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, time):
     agents_patches = dict()
     agent_names = dict()
     goal_agent_name = dict()
-    tasks = dict()
     # Create boundary patch
     xmin = -0.5
     ymin = -0.5
@@ -247,6 +246,12 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, time):
         agent_names[name].set_verticalalignment('center')
         artists.append(agent_names[name])
 
+    # Plotting pending tasks (currently not assigned to any agent)
+    for task in tasks.values():
+        if task.task_state is not TaskState.COMPLETED:
+            patches.append(Rectangle((task.start_pos[0] - 0.25, task.start_pos[1] - 0.25), 0.5, 0.5, facecolor=Colors[0], edgecolor='red',alpha=1))
+            patches.append(Rectangle((task.goal_pos[0] - 0.25, task.goal_pos[1] - 0.25), 0.5, 0.5, facecolor=Colors[0], edgecolor='red', alpha=1))
+
     for p in patches:
         ax.add_patch(p)
     for a in artists:
@@ -264,9 +269,9 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, time):
     #plt.suptitle(figure_title)
     #plt.get_current_fig_manager().set_window_title(figure_title)
     filename = './Figures/' + figure_title + '.png'
-    plt.savefig(filename)
-    plt.close()
-    #plt.show()
+    #plt.savefig(filename)
+    #plt.close()
+    plt.show()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
