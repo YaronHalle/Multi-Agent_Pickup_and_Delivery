@@ -32,8 +32,6 @@ class Central(object):
         self.occupied_non_task_endpoints = []
         self.free_non_task_endpoints = deepcopy(self.non_task_endpoints)
         self.tasks = {}
-        self.start_tasks_times = {}
-        self.completed_tasks_times = {}
         self.a_star_max_iter = a_star_max_iter
         self.agents_to_tasks = {}
         self.tasks_to_agents = {}
@@ -339,12 +337,13 @@ class Central(object):
                     task_name = agent['task_name']
                     completed_task_record = self.tasks[task_name]
                     completed_task_record.task_state = TaskState.COMPLETED
+                    completed_task_record.finish_time = time
                     del agent['goal']
                     del agent['task_name']
                     del self.agents_to_tasks[agent_name]
                     del self.tasks_to_agents[task_name]
 
-    def time_step(self, time, new_tasks):
+    def time_step(self, time):
         agents_for_assignment = []
         agents_for_path_planning = []
         tasks_to_assign = []
@@ -357,9 +356,8 @@ class Central(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Collecting new tasks released since last algorithm step
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        for t in new_tasks:
-            self.tasks[t.task_name] = t
-            self.start_tasks_times[t.task_name] = time
+        # for t in new_tasks:
+        #     self.tasks[t.task_name] = t
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which agents should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -379,11 +377,17 @@ class Central(object):
                 # Updating the agent's state to BUSY
                 agent['state'] = AgentState.BUSY
 
-            # Adding ENROUTE and FREE agents to potential task/endpoint assignment.
-            elif agent['state'] != AgentState.BUSY: # agent['state'] == AgentState.ENROUTE or agent['state'] == AgentState.FREE:
+            # Adding non-BUSY agents to potential task/endpoint assignment.
+            elif agent['state'] == AgentState.BUSY:
+                agents_for_path_planning.append(agent)
+            else:
                 agents_for_assignment.append(agent)
                 agents_for_path_planning.append(agent)
                 self.unassigned_agents.append(agent['name'])
+            # elif agent['state'] != AgentState.BUSY:
+            #     agents_for_assignment.append(agent)
+            #     agents_for_path_planning.append(agent)
+            #     self.unassigned_agents.append(agent['name'])
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which tasks should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -494,7 +498,8 @@ class Central(object):
         # non-task endpoint location.
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Plotting for debug
-        #show_current_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents)
+        show_current_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents, self.tasks, time)
+        #show_current_state(dimensions, obstacles, non_task_endpoints, agents, solver.tasks, simulation.time))
         for agent_record in self.agents:
             print(agent_record['name'], ' is in state = ', agent_record['state'])
 
@@ -502,7 +507,7 @@ class Central(object):
         if len(agents_for_path_planning) > 0:
             # Collecting all the agents that are currently moving and weren't designated for re-path planning. These
             # agents would be considered as "moving obstacles" to avoid during the following CBS search.
-            moving_obstacles = self.get_currently_moving_agents(agents_for_path_planning)
+            moving_obstacles = None  # self.get_currently_moving_agents(agents_for_path_planning)
 
             env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, moving_obstacles, self.a_star_max_iter)
             cbs = CBS(env)
@@ -547,7 +552,6 @@ class Central(object):
                     # that are about to be re-planned.
                     t = agent_trajectory[k]['t'] - pos_index
                     temp_tuple = (x, y, t)
-                    #
                     moving_obstacles[temp_tuple] = agent_record['name']
         return moving_obstacles
 

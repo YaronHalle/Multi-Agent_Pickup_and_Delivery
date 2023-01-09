@@ -121,55 +121,63 @@ class Simulation(object):
         return 0
 
     def compute_statistics(self):
-        counters_dict = {}
-        counters_dict[TaskState.PENDING] = 0
-        counters_dict[TaskState.ASSIGNED] = 0
-        counters_dict[TaskState.EXECUTED] = 0
-        counters_dict[TaskState.COMPLETED] = 0
+        self.statistics[self.time] = {}
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Counting tasks according to task's states
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        tasks_counters = {TaskState.PENDING.value: 0, TaskState.ASSIGNED.value: 0, TaskState.EXECUTED.value: 0, TaskState.COMPLETED.value: 0}
         for task in self.solver.tasks.values():
-            counters_dict[task.task_state] += 1
+            tasks_counters[task.task_state.value] += 1
+        # tasks_counters = {TaskState['PENDING'].value: 0, TaskState.ASSIGNED: 0, TaskState.EXECUTED: 0,
+        #                       TaskState.COMPLETED: 0}
+        # for task in self.solver.tasks.values():
+        #     tasks_counters[TaskState[task.task_state].value] += 1
 
-        print("Pending tasks counter = ", counters_dict[TaskState.PENDING])
-        print("Assigned tasks counter = ", counters_dict[TaskState.ASSIGNED])
-        print("Executed tasks counter = ", counters_dict[TaskState.EXECUTED])
-        print("Completed tasks counter = ", counters_dict[TaskState.COMPLETED])
-#
-# if __name__ == '__main__':
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument('-param', help='Input file containing map and obstacles')
-#     parser.add_argument('-output', help='Output file with the schedule')
-#     args = parser.parse_args()
-#
-#     if args.param is None:
-#         with open(os.path.join(RoothPath.get_root(), 'config.json'), 'r') as json_file:
-#             config = json.load(json_file)
-#         args.param = os.path.join(RoothPath.get_root(), os.path.join(config['input_path'], config['input_name']))
-#         args.output = os.path.join(RoothPath.get_root(), 'output.yaml')
-#
-#     # Read from input file
-#     with open(args.param, 'r') as param_file:
-#         try:
-#             param = yaml.load(param_file, Loader=yaml.FullLoader)
-#         except yaml.YAMLError as exc:
-#             print(exc)
-#
-#     dimensions = param['map']['dimensions']
-#     obstacles = param['map']['obstacles']
-#     non_task_endpoints = param['map']['non_task_endpoints']
-#     agents = param['agents']
-#     tasks = param['tasks']
-#     delays = param['delays']
-#
-#     # Simulate
-#     simulation = Simulation(tasks, agents, delays=delays)
-#     tp = TokenPassingRecovery(agents, dimensions, obstacles, non_task_endpoints, simulation, a_star_max_iter=2000, k=5)
-#     while tp.get_completed_tasks() != len(tasks):
-#         simulation.time_forward(tp)
-#
-#     cost = 0
-#     for path in simulation.actual_paths.values():
-#         cost = cost + len(path)
-#     output = {'schedule': simulation.actual_paths, 'cost': cost, 'completed_tasks_times': tp.get_completed_tasks_times(),
-#               'n_replans': tp.get_n_replans()}
-#     with open(args.output, 'w') as output_yaml:
-#         yaml.safe_dump(output, output_yaml)
+        self.statistics[self.time]['tasks_counters'] = tasks_counters
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Computing throughput
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if self.time > 0:
+            throughput = self.statistics[self.time]['tasks_counters'][TaskState.COMPLETED.value] - \
+                        self.statistics[self.time - 1]['tasks_counters'][TaskState.COMPLETED.value]
+        else:
+            throughput = 0
+        self.statistics[self.time]['throughput'] = throughput
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Computing average service time
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        N_samples = 0
+        service_time_sum = 0
+        for task in self.solver.tasks.values():
+            if task.task_state == TaskState.COMPLETED:
+                task_service_time = task.finish_time - task.start_time
+                service_time_sum += task_service_time
+                N_samples += 1
+        if N_samples > 0:
+            avg_service_time = service_time_sum / N_samples
+        else:
+            avg_service_time = None
+        self.statistics[self.time]['service_time'] = avg_service_time
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Appending to JSON stats file
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        stats_filename = "stats_file.json"
+        if self.time == 0:
+            # Creating the JSON file for the first time
+            with open(stats_filename, "w") as write_file:
+                json.dump(self.statistics[self.time], write_file)
+        else:
+            with open(stats_filename, "r") as read_file:
+                data = json.load(read_file)
+            data[self.time] = self.statistics[self.time]
+            with open(stats_filename, "w") as write_file:
+                json.dump(data, write_file)
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Debug Printing
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        print("Pending tasks counter = ", tasks_counters[TaskState.PENDING.value])
+        print("Assigned tasks counter = ", tasks_counters[TaskState.ASSIGNED.value])
+        print("Executed tasks counter = ", tasks_counters[TaskState.EXECUTED.value])
+        print("Completed tasks counter = ", tasks_counters[TaskState.COMPLETED.value])
+        print("Current step throughput = ", throughput)
+        print("Average service time so far = ", avg_service_time)

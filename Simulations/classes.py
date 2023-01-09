@@ -25,4 +25,5 @@ class Task(object):
         self.task_state = None
         self.task_type = None
         self.start_time = None
+        self.finish_time = None
 

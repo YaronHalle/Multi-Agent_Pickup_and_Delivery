@@ -11,10 +11,14 @@ class TaskGenerator(object):
     def __init__(self, starts, goals, sampled_starts=None, sampled_goals=None):
         self.next_start_sample_index = -1
         self.next_goal_sample_index = -1
-        self.n_samples = 10000
-        self.starts = starts
-        self.goals = goals
+        self.n_samples = 1000000
+        self.starts = set()
+        self.goals = set()
         self.taken_squares = set()
+        for start in starts:
+            self.starts.add(tuple([start[0], start[1]]))
+        for goal in goals:
+            self.goals.add(tuple([goal[0], goal[1]]))
         if sampled_starts is None:
             self.opmode = GenerationScheme.RANDOM
             self.next_starts = []
@@ -27,8 +31,8 @@ class TaskGenerator(object):
 
     def generate_random_positions(self):
         for i in range(self.n_samples):
-            next_start = random.choice(self.starts)
-            next_goal = random.choice(self.goals)
+            next_start = random.choice(list(self.starts))
+            next_goal = random.choice(list(self.goals))
             self.next_starts.append(tuple([next_start[0], next_start[1]]))
             self.next_goals.append(tuple([next_goal[0], next_goal[1]]))
 
@@ -63,6 +67,16 @@ class TaskGenerator(object):
 
             self.taken_squares.add(next_start)
             self.taken_squares.add(next_goal)
+
+            free_starts = self.starts - self.taken_squares
+            free_goals = self.goals - self.taken_squares
+
+            if len(free_starts) == 0:
+                print('Warning: No more available task starting locations for generation!')
+                break
+            if len(free_goals) == 0:
+                print('Warning: No more available task goal locations for generation!')
+                break
 
             new_task = Task()
             new_task.task_name = 'task' + str(n_tasks_so_far + i)

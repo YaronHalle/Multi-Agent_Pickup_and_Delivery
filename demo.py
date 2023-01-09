@@ -50,7 +50,7 @@ if __name__ == '__main__':
     obstacles = param['map']['obstacles']
     non_task_endpoints = param['map']['non_task_endpoints']
     agents = param['agents']
-    simulation_end_time = 200 #param['simulation_end_time']
+    simulation_end_time = 3000 #param['simulation_end_time']
 
     # Adding the current_pos field for each agent
     for agent in agents:
@@ -59,20 +59,12 @@ if __name__ == '__main__':
     solver_freq = 1   # every cycle
     cycles_since_last_solver_run = solver_freq
 
-    if args.not_rand:
-        # Old fixed tasks and delays
-        tasks = param['tasks']
-    else:
-        # Generate random tasks and delays
-        tasks = gen_tasks_and_delays(agents, param['map']['start_locations'], param['map']['goal_locations'],
-                                             param['n_tasks'], param['task_freq'])
-    param['tasks'] = tasks
     with open(args.param + config['visual_postfix'], 'w') as param_file:
         yaml.safe_dump(param, param_file)
     # ----------------------------------------------------------------------
     # Save data to JSON file
     # ----------------------------------------------------------------------
-    if False:
+    if True:
         tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'])
         data = dict()
         data['agents'] = agents
@@ -81,14 +73,13 @@ if __name__ == '__main__':
         data['non_task_endpoints'] = non_task_endpoints
         data['sampled_starts_positions'] = tg.next_starts
         data['sampled_goals_positions'] = tg.next_goals
-        #data['tasks'] = tasks
         with open("data_file.json", "w") as write_file:
             json.dump(data, write_file)
 
     # ----------------------------------------------------------------------
     # Loading data from JSON file
     # ----------------------------------------------------------------------
-    if True:
+    if False:
         with open("data_file.json", "r") as read_file:
             data = json.load(read_file)
             agents = data['agents']
@@ -113,7 +104,7 @@ if __name__ == '__main__':
     solver = Central(agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=args.a_star_max_iter)
 
     # Instantiate a Simulation object
-    simulation = Simulation(tasks, agents, solver)
+    simulation = Simulation(solver.tasks, agents, solver)
     simulation.simulation_end_time = simulation_end_time
     new_tasks = []
 
@@ -123,14 +114,14 @@ if __name__ == '__main__':
         # Gathering new tasks introduced in the current time step
         #new_tasks_buffer = simulation.get_new_tasks()
         #new_tasks_buffer = simulation.generate_new_tasks(solver.tasks, param['map']['start_locations'], param['map']['goal_locations'], 2)
-        new_tasks_buffer = tg.generate_new_tasks(solver.tasks, 2, simulation.time)
+        new_tasks_buffer = tg.generate_new_tasks(solver.tasks, 10, simulation.time)
 
         for t in new_tasks_buffer:
-            new_tasks.append(t)
+            solver.tasks[t.task_name] = t
 
         # Check if it is time to invoke the solver
         if cycles_since_last_solver_run == solver_freq:
-            solver.time_step(simulation.time, new_tasks)
+            solver.time_step(simulation.time)
             new_tasks.clear()
             cycles_since_last_solver_run = 0
             simulation.actual_paths = solver.paths

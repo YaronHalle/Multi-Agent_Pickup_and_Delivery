@@ -273,6 +273,11 @@ class CBS(object):
         self.open_set = set()
         self.closed_set = set()
 
+        # debug
+        self.conflict_dict = dict()
+        self.major_conflict = None
+        self.major_conflict_count = 0
+
     def search(self):
         start = HighLevelNode()
         # TODO: Initialize it in a better way
@@ -298,6 +303,9 @@ class CBS(object):
 
                 return self.generate_plan(P.solution)
 
+            # debug
+            self.update_conflicts_stats(conflict_dict)
+
             constraint_dict = self.env.create_constraints_from_conflict(conflict_dict)
 
             for agent in constraint_dict.keys():
@@ -322,47 +330,56 @@ class CBS(object):
             path_dict_list = [{'t':state.time, 'x':state.location.x, 'y':state.location.y} for state in path]
             plan[agent] = path_dict_list
         return plan
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-param", help="input file containing map and obstacles")
-    parser.add_argument("-output", help="output file with the schedule")
-    args = parser.parse_args()
-
-    if args.param is None:
-        args.param = 'input.yaml'
-        args.output = 'output.yaml'
-
-
-    # Read from input file
-    with open(args.param, 'r') as param_file:
-        try:
-            param = yaml.load(param_file, Loader=yaml.FullLoader)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-    dimension = param["map"]["dimensions"]
-    obstacles = param["map"]["obstacles"]
-    agents = param['agents']
-
-    env = Environment(dimension, agents, obstacles, a_star_max_iter=1000)
-
-    # Searching
-    cbs = CBS(env)
-    solution = cbs.search()
-    if not solution:
-        print("Solution not found")
-        exit(0)
-
-    # Write to output file
-    with open(args.output, 'r') as output_yaml:
-        try:
-            output = yaml.load(output_yaml, Loader=yaml.FullLoader)
-        except yaml.YAMLError as exc:
-            print(exc)
-
-    output["schedule"] = solution
-    output["cost"] = env.compute_solution_cost(solution)
-    with open(args.output, 'w') as output_yaml:
-        yaml.safe_dump(output, output_yaml)
+    def update_conflicts_stats(self, conflict):
+        conflict_entry = tuple([conflict.location_1.x, conflict.location_1.y, conflict.agent_1, conflict.agent_2, conflict.time])
+        if conflict_entry not in self.conflict_dict:
+            self.conflict_dict[conflict_entry] = 0
+        else:
+            self.conflict_dict[conflict_entry] += 1
+            if self.conflict_dict[conflict_entry] > self.major_conflict_count:
+                self.major_conflict_count = self.conflict_dict[conflict_entry]
+                self.major_conflict = conflict_entry
+                print('\t[',conflict_entry[0], ',', conflict_entry[1], ',', conflict_entry[2],',', conflict_entry[3],',', conflict_entry[4], '], count = ', self.major_conflict_count)
+#
+# if __name__ == "__main__":
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("-param", help="input file containing map and obstacles")
+#     parser.add_argument("-output", help="output file with the schedule")
+#     args = parser.parse_args()
+#
+#     if args.param is None:
+#         args.param = 'input.yaml'
+#         args.output = 'output.yaml'
+#
+#
+#     # Read from input file
+#     with open(args.param, 'r') as param_file:
+#         try:
+#             param = yaml.load(param_file, Loader=yaml.FullLoader)
+#         except yaml.YAMLError as exc:
+#             print(exc)
+#
+#     dimension = param["map"]["dimensions"]
+#     obstacles = param["map"]["obstacles"]
+#     agents = param['agents']
+#
+#     env = Environment(dimension, agents, obstacles, a_star_max_iter=1000)
+#
+#     # Searching
+#     cbs = CBS(env)
+#     solution = cbs.search()
+#     if not solution:
+#         print("Solution not found")
+#         exit(0)
+#
+#     # Write to output file
+#     with open(args.output, 'r') as output_yaml:
+#         try:
+#             output = yaml.load(output_yaml, Loader=yaml.FullLoader)
+#         except yaml.YAMLError as exc:
+#             print(exc)
+#
+#     output["schedule"] = solution
+#     output["cost"] = env.compute_solution_cost(solution)
+#     with open(args.output, 'w') as output_yaml:
+#         yaml.safe_dump(output, output_yaml)

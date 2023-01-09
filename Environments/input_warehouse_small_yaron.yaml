@@ -1,36 +1,20 @@
 agents:
--   start: [0, 1]
-    name: agent0
--   start: [0, 5]
-    name: agent1
--   start: [0, 7]
-    name: agent2
--   start: [0, 11]
-    name: agent3
--   start: [14, 1]
-    name: agent4
--   start: [14, 5]
-    name: agent5
--   start: [14, 7]
-    name: agent6
--   start: [14, 11]
-    name: agent7
 -   start: [2, 1]
-    name: agent8
+    name: agent1
 -   start: [2, 5]
-    name: agent9
+    name: agent2
 -   start: [2, 7]
-    name: agent10
+    name: agent3
 -   start: [2, 11]
-    name: agent11
+    name: agent4
 -   start: [12, 1]
-    name: agent12
+    name: agent5
 -   start: [12, 5]
-    name: agent13
+    name: agent6
 -   start: [12, 7]
-    name: agent14
+    name: agent7
 -   start: [12, 11]
-    name: agent15
+    name: agent8
 map:
     dimensions: [15, 13]
     obstacles:
@@ -92,14 +76,6 @@ map:
     - !!python/tuple [11, 9]
     - !!python/tuple [11, 11]
     non_task_endpoints:
-    - !!python/tuple [0, 1]
-    - !!python/tuple [0, 5]
-    - !!python/tuple [0, 7]
-    - !!python/tuple [0, 11]
-    - !!python/tuple [14, 1]
-    - !!python/tuple [14, 5]
-    - !!python/tuple [14, 7]
-    - !!python/tuple [14, 11]
     - !!python/tuple [2, 1]
     - !!python/tuple [2, 5]
     - !!python/tuple [2, 7]
@@ -134,46 +110,28 @@ map:
     -   [8, 11]
     -   [10, 11]
     goal_locations:
+    -   [0, 1]
     -   [0, 2]
     -   [0, 3]
     -   [0, 4]
+    -   [0, 5]
     -   [0, 6]
+    -   [0, 7]
     -   [0, 8]
     -   [0, 9]
     -   [0, 10]
+    -   [0, 11]
+    -   [14, 1]
     -   [14, 2]
     -   [14, 3]
     -   [14, 4]
+    -   [14, 5]
     -   [14, 6]
+    -   [14, 7]
     -   [14, 8]
     -   [14, 9]
     -   [14, 10]
-    -   [1,  0 ]
-    -   [1,  1 ]
-    -   [1,  2 ]
-    -   [1,  3 ]
-    -   [1,  4 ]
-    -   [1,  5 ]
-    -   [1,  6 ]
-    -   [1,  7 ]
-    -   [1,  8 ]
-    -   [1,  9 ]
-    -   [1,  10 ]
-    -   [1,  11 ]
-    -   [1,  12 ]
-    -   [13, 0 ]
-    -   [13, 1 ]
-    -   [13, 2 ]
-    -   [13, 3 ]
-    -   [13, 4 ]
-    -   [13, 5 ]
-    -   [13, 6 ]
-    -   [13, 7 ]
-    -   [13, 8 ]
-    -   [13, 9 ]
-    -   [13, 10 ]
-    -   [13, 11 ]
-    -   [13, 12 ]
+    -   [14, 11]
 n_tasks: 50
 task_freq: 1
 n_delays_per_agent: 10
