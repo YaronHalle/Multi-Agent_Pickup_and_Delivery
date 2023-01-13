@@ -11,7 +11,7 @@ class TaskGenerator(object):
     def __init__(self, starts, goals, sampled_starts=None, sampled_goals=None):
         self.next_start_sample_index = -1
         self.next_goal_sample_index = -1
-        self.n_samples = 1000000
+        self.n_samples = 10000000
         self.starts = set()
         self.goals = set()
         self.taken_squares = set()
@@ -37,21 +37,32 @@ class TaskGenerator(object):
             self.next_goals.append(tuple([next_goal[0], next_goal[1]]))
 
     def get_next_samples(self):
-        self.next_start_sample_index += 1
+        if self.next_start_sample_index < len(self.next_starts) - 1:
+            self.next_start_sample_index += 1
+        else:
+            self.next_start_sample_index = 0
         next_start = self.next_starts[self.next_start_sample_index]
         while next_start in self.taken_squares:
-            self.next_start_sample_index += 1
+            if self.next_start_sample_index < len(self.next_starts)-1:
+                self.next_start_sample_index += 1
+            else:
+                self.next_start_sample_index = 0
             next_start = self.next_starts[self.next_start_sample_index]
-
-        self.next_goal_sample_index += 1
+        if self.next_goal_sample_index < len(self.next_goals)-1:
+            self.next_goal_sample_index += 1
+        else:
+            self.next_goal_sample_index = 0
         next_goal = self.next_goals[self.next_goal_sample_index]
         while next_goal in self.taken_squares:
-            self.next_goal_sample_index += 1
+            if self.next_goal_sample_index < len(self.next_goals) - 1:
+                self.next_goal_sample_index += 1
+            else:
+                self.next_goal_sample_index = 0
             next_goal = self.next_goals[self.next_goal_sample_index]
 
         return next_start, next_goal
 
-    def generate_new_tasks(self, current_tasks, n_tasks, current_time):
+    def generate_new_tasks(self, agents, current_tasks, n_tasks, current_time):
         new_tasks = []
         n_tasks_so_far = len(current_tasks)
         self.taken_squares.clear()
@@ -61,13 +72,11 @@ class TaskGenerator(object):
                 self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
             if task.task_state == TaskState.EXECUTED:
                 self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+        for agent in agents:
+            current_pos = tuple([agent['current_pos'][0], agent['current_pos'][1]])
+            self.taken_squares.add(current_pos)
 
         for i in range(n_tasks):
-            next_start, next_goal = self.get_next_samples()
-
-            self.taken_squares.add(next_start)
-            self.taken_squares.add(next_goal)
-
             free_starts = self.starts - self.taken_squares
             free_goals = self.goals - self.taken_squares
 
@@ -78,6 +87,11 @@ class TaskGenerator(object):
                 print('Warning: No more available task goal locations for generation!')
                 break
 
+            next_start, next_goal = self.get_next_samples()
+
+            self.taken_squares.add(next_start)
+            self.taken_squares.add(next_goal)
+
             new_task = Task()
             new_task.task_name = 'task' + str(n_tasks_so_far + i)
             new_task.start_pos = next_start
@@ -85,6 +99,7 @@ class TaskGenerator(object):
             new_task.task_state = TaskState.PENDING
             new_task.task_type = 0
             new_task.start_time = int(current_time)
+            new_task.delay_time = 0
             new_tasks.append(new_task)
 
         return new_tasks

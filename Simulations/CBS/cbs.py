@@ -91,13 +91,14 @@ class Constraints(object):
             "EC: " + str([str(ec) for ec in self.edge_constraints])
 
 class Environment(object):
-    def __init__(self, dimension, agents, obstacles, moving_obstacles=None, a_star_max_iter=-1):
+    def __init__(self, dimension, agents, obstacles, moving_obstacles=None, shelves_locations=None, a_star_max_iter=-1):
         if moving_obstacles is None:
             moving_obstacles = []
         self.dimension = dimension
         self.obstacles = obstacles
         self.moving_obstacles = moving_obstacles
         self.a_star_max_iter = a_star_max_iter
+        self.shelves_locations = shelves_locations
 
         self.agents = agents
         self.agent_dict = {}
@@ -108,6 +109,7 @@ class Environment(object):
         self.constraint_dict = {}
 
         self.a_star = AStar(self)
+        self.a_star.iter = 0
 
     def get_neighbors(self, state):
         neighbors = []
@@ -256,6 +258,7 @@ class HighLevelNode(object):
         self.solution = {}
         self.constraint_dict = {}
         self.cost = 0
+        self.depth = 0 # debug
 
     def __eq__(self, other):
         if not isinstance(other, type(self)): return NotImplemented
@@ -291,7 +294,7 @@ class CBS(object):
 
         self.open_set |= {start}
 
-        while self.open_set:
+        while self.open_set and (self.env.a_star.iter < self.env.a_star.max_iter):
             P = min(self.open_set)
             self.open_set -= {P}
             self.closed_set |= {P}
@@ -304,13 +307,15 @@ class CBS(object):
                 return self.generate_plan(P.solution)
 
             # debug
-            self.update_conflicts_stats(conflict_dict)
+            #self.update_conflicts_stats(conflict_dict)
+            # print('Depth = ', P.depth,', Conflict at [',conflict_dict.location_1.x,',',conflict_dict.location_1.y,'] of agents: ',conflict_dict.agent_1,' with ',conflict_dict.agent_2)
 
             constraint_dict = self.env.create_constraints_from_conflict(conflict_dict)
 
             for agent in constraint_dict.keys():
                 new_node = deepcopy(P)
                 new_node.constraint_dict[agent].add_constraint(constraint_dict[agent])
+                new_node.depth += 1  # debug
 
                 self.env.constraint_dict = new_node.constraint_dict
                 new_node.solution = self.env.compute_solution()

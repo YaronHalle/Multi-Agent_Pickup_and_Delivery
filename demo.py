@@ -25,7 +25,7 @@ if __name__ == '__main__':
                                         'before exceeds the probability threshold (p-TP)',
                         default=1, type=int)
     parser.add_argument('-a_star_max_iter', help='Maximum number of states explored by the low-level algorithm',
-                        default=1000000000, type=int)
+                        default=1e7, type=int)
     parser.add_argument('-slow_factor', help='Slow factor of visualization', default=1, type=int)
     parser.add_argument('-not_rand', help='Use if input has fixed tasks and delays', action='store_true')
 
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Save data to JSON file
     # ----------------------------------------------------------------------
-    if True:
+    if False:
         tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'])
         data = dict()
         data['agents'] = agents
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Loading data from JSON file
     # ----------------------------------------------------------------------
-    if False:
+    if True:
         with open("data_file.json", "r") as read_file:
             data = json.load(read_file)
             agents = data['agents']
@@ -90,7 +90,6 @@ if __name__ == '__main__':
             non_task_endpoints = []
             for endpoint in data['non_task_endpoints']:
                 non_task_endpoints.append(tuple([endpoint[0], endpoint[1]]))
-            #tasks = data['tasks']
             sampled_starts_positions = []
             for next_start in data['sampled_starts_positions']:
                 sampled_starts_positions.append(tuple([next_start[0], next_start[1]]))
@@ -112,9 +111,7 @@ if __name__ == '__main__':
         print('---------------------- Time = ', simulation.time, ' ----------------------')
 
         # Gathering new tasks introduced in the current time step
-        #new_tasks_buffer = simulation.get_new_tasks()
-        #new_tasks_buffer = simulation.generate_new_tasks(solver.tasks, param['map']['start_locations'], param['map']['goal_locations'], 2)
-        new_tasks_buffer = tg.generate_new_tasks(solver.tasks, 10, simulation.time)
+        new_tasks_buffer = tg.generate_new_tasks(solver.agents, solver.tasks, 10, simulation.time)
 
         for t in new_tasks_buffer:
             solver.tasks[t.task_name] = t

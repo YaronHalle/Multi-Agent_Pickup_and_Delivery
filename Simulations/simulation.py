@@ -159,6 +159,19 @@ class Simulation(object):
             avg_service_time = None
         self.statistics[self.time]['service_time'] = avg_service_time
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Computing average delay time
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        delay_time_sum = 0
+        for task in self.solver.tasks.values():
+            if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
+                task.delay_time += 1
+            delay_time_sum += task.delay_time
+        if len(self.solver.tasks) > 0:
+            avg_delay_time = delay_time_sum / len(self.solver.tasks)
+        else:
+            avg_delay_time = None
+        self.statistics[self.time]['delay_time'] = avg_delay_time
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Appending to JSON stats file
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         stats_filename = "stats_file.json"
@@ -180,4 +193,5 @@ class Simulation(object):
         print("Executed tasks counter = ", tasks_counters[TaskState.EXECUTED.value])
         print("Completed tasks counter = ", tasks_counters[TaskState.COMPLETED.value])
         print("Current step throughput = ", throughput)
+        print("Average delay time so far = ", avg_delay_time)
         print("Average service time so far = ", avg_service_time)

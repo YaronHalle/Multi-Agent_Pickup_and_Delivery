@@ -1,18 +1,26 @@
 agents:
 -   start: [2, 1]
     name: agent1
+-   start: [2, 3]
+    name: agent9
 -   start: [2, 5]
     name: agent2
 -   start: [2, 7]
     name: agent3
 -   start: [2, 11]
     name: agent4
+-   start: [2, 9]
+    name: agent11
 -   start: [12, 1]
     name: agent5
+-   start: [12, 3]
+    name: agent10
 -   start: [12, 5]
     name: agent6
 -   start: [12, 7]
     name: agent7
+-   start: [12, 9]
+    name: agent12
 -   start: [12, 11]
     name: agent8
 map:
@@ -84,6 +92,10 @@ map:
     - !!python/tuple [12, 5]
     - !!python/tuple [12, 7]
     - !!python/tuple [12, 11]
+    - !!python/tuple [2, 3]
+    - !!python/tuple [2, 9]
+    - !!python/tuple [12, 3]
+    - !!python/tuple [12, 9]
     start_locations:
     -   [4, 1]
     -   [6, 1]
