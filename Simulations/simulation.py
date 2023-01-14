@@ -142,7 +142,19 @@ class Simulation(object):
                         self.statistics[self.time - 1]['tasks_counters'][TaskState.COMPLETED.value]
         else:
             throughput = 0
-        self.statistics[self.time]['throughput'] = throughput
+        self.statistics[self.time]['current_step_throughput'] = throughput
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Computing average throughput
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        throughput_sum = 0
+        for record in self.statistics.values():
+            throughput_sum += record['current_step_throughput']
+        N_samples = len( self.statistics)
+        if N_samples > 0:
+            avg_throughput = throughput_sum / N_samples
+        else:
+            avg_throughput = None
+        self.statistics[self.time]['avg_throughput'] = avg_throughput
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Computing average service time
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -157,7 +169,7 @@ class Simulation(object):
             avg_service_time = service_time_sum / N_samples
         else:
             avg_service_time = None
-        self.statistics[self.time]['service_time'] = avg_service_time
+        self.statistics[self.time]['avg_service_time'] = avg_service_time
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Computing average delay time
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -170,7 +182,7 @@ class Simulation(object):
             avg_delay_time = delay_time_sum / len(self.solver.tasks)
         else:
             avg_delay_time = None
-        self.statistics[self.time]['delay_time'] = avg_delay_time
+        self.statistics[self.time]['avg_delay_time'] = avg_delay_time
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Appending to JSON stats file
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -193,5 +205,6 @@ class Simulation(object):
         print("Executed tasks counter = ", tasks_counters[TaskState.EXECUTED.value])
         print("Completed tasks counter = ", tasks_counters[TaskState.COMPLETED.value])
         print("Current step throughput = ", throughput)
+        print("Average throughput so far = ", avg_throughput)
         print("Average delay time so far = ", avg_delay_time)
         print("Average service time so far = ", avg_service_time)
