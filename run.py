@@ -3,7 +3,8 @@ import yaml
 import json
 import os
 from Simulations.simulation import Simulation
-from Simulations.central_algorithm import Central, TaskState
+from Simulations.central_algorithm import ClassicMAPDSolver, TaskState
+from Simulations.MAPD_NAT_algorithm import NonAtomicSolver
 import RoothPath
 from Simulations.tasks_and_delays_maker import *
 from Simulations.task_generator import *
@@ -100,10 +101,11 @@ if __name__ == '__main__':
                                sampled_starts_positions, sampled_goals_positions)
 
     # Instantiate a Solver object
-    solver = Central(agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=args.a_star_max_iter)
+    # solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
 
     # Instantiate a Simulation object
-    simulation = Simulation(solver.tasks, agents, solver)
+    simulation = Simulation(solver.get_tasks(), agents, solver)
     simulation.simulation_end_time = simulation_end_time
     new_tasks = []
 
@@ -111,19 +113,20 @@ if __name__ == '__main__':
         print('---------------------- Time = ', simulation.time, ' ----------------------')
 
         # Gathering new tasks introduced in the current time step
-        new_tasks_buffer = tg.generate_new_tasks(solver.agents, solver.tasks, 10, simulation.time)
+        new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 10, simulation.time)
 
-        for t in new_tasks_buffer:
-            solver.tasks[t.task_name] = t
+        # for t in new_tasks_buffer:
+        #     solver.tasks[t.task_name] = t
+        solver.add_tasks(new_tasks_buffer)
 
         # Check if it is time to invoke the solver
         if cycles_since_last_solver_run == solver_freq:
             solver.time_step(simulation.time)
             new_tasks.clear()
             cycles_since_last_solver_run = 0
-            simulation.actual_paths = solver.paths
+            # simulation.actual_paths = solver.paths
 
-        #show_current_state(dimensions, obstacles, non_task_endpoints, agents, solver.tasks, simulation.time)
+        show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(), simulation.time)
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 

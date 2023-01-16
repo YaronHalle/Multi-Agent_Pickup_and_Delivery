@@ -122,11 +122,12 @@ class Simulation(object):
 
     def compute_statistics(self):
         self.statistics[self.time] = {}
+        tasks = self.solver.get_tasks()
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Counting tasks according to task's states
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         tasks_counters = {TaskState.PENDING.value: 0, TaskState.ASSIGNED.value: 0, TaskState.EXECUTED.value: 0, TaskState.COMPLETED.value: 0}
-        for task in self.solver.tasks.values():
+        for task in tasks.values():
             tasks_counters[task.task_state.value] += 1
         # tasks_counters = {TaskState['PENDING'].value: 0, TaskState.ASSIGNED: 0, TaskState.EXECUTED: 0,
         #                       TaskState.COMPLETED: 0}
@@ -160,7 +161,7 @@ class Simulation(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         N_samples = 0
         service_time_sum = 0
-        for task in self.solver.tasks.values():
+        for task in tasks.values():
             if task.task_state == TaskState.COMPLETED:
                 task_service_time = task.finish_time - task.start_time
                 service_time_sum += task_service_time
@@ -174,12 +175,12 @@ class Simulation(object):
         # Computing average delay time
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         delay_time_sum = 0
-        for task in self.solver.tasks.values():
+        for task in tasks.values():
             if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
                 task.delay_time += 1
             delay_time_sum += task.delay_time
-        if len(self.solver.tasks) > 0:
-            avg_delay_time = delay_time_sum / len(self.solver.tasks)
+        if len(tasks) > 0:
+            avg_delay_time = delay_time_sum / len(tasks)
         else:
             avg_delay_time = None
         self.statistics[self.time]['avg_delay_time'] = avg_delay_time
