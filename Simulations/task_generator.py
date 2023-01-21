@@ -12,6 +12,7 @@ class TaskGenerator(object):
         self.next_start_sample_index = -1
         self.next_goal_sample_index = -1
         self.n_samples = 10000000
+        #self.n_samples = 10
         self.starts = set()
         self.goals = set()
         self.taken_squares = set()
@@ -30,6 +31,7 @@ class TaskGenerator(object):
             self.next_goals = sampled_goals
 
     def generate_random_positions(self):
+        random.seed(12345)
         for i in range(self.n_samples):
             next_start = random.choice(list(self.starts))
             next_goal = random.choice(list(self.goals))

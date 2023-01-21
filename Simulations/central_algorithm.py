@@ -52,16 +52,19 @@ class ClassicMAPDSolver(object):
             # Initializing an index to the agent's path current position
             agent_record['current_path_index'] = 0
 
-            # Determining whether agent state is IDLE or FREE according to its initial position
-            agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
-            if agent_pos in self.non_task_endpoints:
-                # Agent rests at some non-task endpoint and should be referred as IDLE
-                agent_record['state'] = AgentState.IDLE
-                self.free_non_task_endpoints.remove(agent_pos)
-                self.occupied_non_task_endpoints.append(agent_pos)
-            else:
-                # Agent is not populating any endpoint and thus is FREE
-                agent_record['state'] = AgentState.FREE
+            # Determining whether agent state is IDLE or FREE according to its initial position. This will be done
+            # only if there's no 'goal' attribute since the solver might be instantiated with a previously determined
+            # agents conditions we don't want to damage (for example, making an EN-ROUTE agent FREE).
+            if 'goal' not in agent_record.keys():
+                agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
+                if agent_pos in self.non_task_endpoints:
+                    # Agent rests at some non-task endpoint and should be referred as IDLE
+                    agent_record['state'] = AgentState.IDLE
+                    self.free_non_task_endpoints.remove(agent_pos)
+                    self.occupied_non_task_endpoints.append(agent_pos)
+                else:
+                    # Agent is not populating any endpoint and thus is FREE
+                    agent_record['state'] = AgentState.FREE
 
     def get_agents(self):
         return self.agents
@@ -460,7 +463,10 @@ class ClassicMAPDSolver(object):
                         env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
                                           self.a_star_max_iter)
                         path = env.a_star.search(agent['name'])
-                        agent2task_cost[agent['name']][task.task_name] = len(path)
+                        if path is not False:
+                            agent2task_cost[agent['name']][task.task_name] = len(path)
+                        else:
+                            agent2task_cost[agent['name']][task.task_name] = float('inf')
                         del agent['goal']
                         del env
 
@@ -534,13 +540,63 @@ class ClassicMAPDSolver(object):
 
             return agent_task_cost
 
+    def compute_prev_cbs_plan_cost(self):
+        prev_cost = self.compute_cbs_plan_cost(self.paths)
+
+        # Reducing -1 step for each EN-ROUTE or BUSY agent due to a single step from previous cycle
+        for agent in self.agents:
+            if agent['state'] == AgentState.ENROUTE or agent['state'] == AgentState.BUSY:
+                prev_cost -= 1
+
+        return prev_cost
+
+    def compute_cbs_plan_cost(self, mapf_solution):
+        total_pickup_cost = 0
+        total_delivery_cost = 0
+
+        for agent_name in mapf_solution:
+            agent_record = self.agents_dict[agent_name]
+            # Summing the pickup paths' cost of EN-ROUTE agents
+            if agent_record['state'] == AgentState.ENROUTE:
+                agent_path_index = agent_record['current_path_index']
+                agent_path_length = len(mapf_solution[agent_name])
+                total_pickup_cost += (agent_path_length - agent_path_index) - 1
+
+                # Adding the heuristic cost from pickup to delivery destination
+                task_name = agent_record['task_name']
+                task = self.tasks[task_name]
+                tentative_agent = deepcopy(agent_record)
+                tentative_agent['current_pos'] = task.start_pos
+                tentative_agent['goal'] = task.goal_pos
+
+                env = Environment(self.dimensions, [tentative_agent], self.obstacles, None, self.shelves_locations,
+                                  self.a_star_max_iter)
+                path = env.a_star.search(tentative_agent['name'])
+                if path is False:
+                    print('Warning! A* path length is zero in compute_solution_total_cost method !')
+                else:
+                    total_delivery_cost += len(path)
+                del tentative_agent
+                del env
+
+            # Summing the delivery paths' cost of BUSY agents
+            if agent_record['state'] == AgentState.BUSY:
+                agent_path_index = agent_record['current_path_index']
+                agent_path_length = len(mapf_solution[agent_name])
+                total_delivery_cost += (agent_path_length - agent_path_index) - 1
+
+        return total_pickup_cost + total_delivery_cost
+
     def compute_solution_total_cost(self, assignment_result):
-        # Summing the pickup assignment paths' length to the total_pickup_cost
+        # Summing the pickup paths' cost (EN-ROUTE agents)
         total_pickup_cost = 0
         for assignment in assignment_result:
             total_pickup_cost += assignment[2]
 
+        # Summing the delivery paths' cost comprised of EN-ROUTE agents that haven't yet arrived to the pickup location
+        # plus the trajectories of agents that have already picked up their shelves (=BUSY agents)
         total_delivery_cost = 0
+        # Computing the EN-ROUTE agents planned paths from their pickup to delivery destinations:
         # Iterating through tasks and computing the path length from task start to finish using A* search assuming no
         # agents collisions
         for assignment in assignment_result:
@@ -553,12 +609,30 @@ class ClassicMAPDSolver(object):
             env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
                               self.a_star_max_iter)
             path = env.a_star.search(agent['name'])
-            if len(path) == 0:
+            if path is False:
                 print('Warning! A* path length is zero in compute_solution_total_cost method !')
             else:
                 total_delivery_cost += len(path)
             del agent
             del env
+
+        # Computing the BUSY agents paths' costs using the previous executed CBS plans
+        for agent_record in self.agents:
+            if agent_record['state'] == AgentState.BUSY:
+                agent = deepcopy(agent_record)
+                task_name = agent['task_name']
+                task = self.tasks[task_name]
+                agent['goal'] = task.goal_pos
+
+                env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
+                                  self.a_star_max_iter)
+                path = env.a_star.search(agent['name'])
+                if path is False:
+                    print('Warning! A* path length is zero in compute_solution_total_cost method !')
+                else:
+                    total_delivery_cost += len(path)
+                del agent
+                del env
 
         return total_pickup_cost + total_delivery_cost
 

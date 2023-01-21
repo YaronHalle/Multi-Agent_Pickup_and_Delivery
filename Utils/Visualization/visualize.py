@@ -249,10 +249,11 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, tasks,
 
     # Plotting pending tasks (currently not assigned to any agent)
     for task in tasks.values():
+        task_color = Colors[task.task_type]
         if task.task_state is TaskState.PENDING or task.task_state is TaskState.ASSIGNED:
-                patches.append(Rectangle((task.start_pos[0] - 0.25, task.start_pos[1] - 0.25), 0.5, 0.5, facecolor=Colors[0], edgecolor='red',alpha=1))
+                patches.append(Rectangle((task.start_pos[0] - 0.25, task.start_pos[1] - 0.25), 0.5, 0.5, facecolor=task_color, edgecolor='red',alpha=1))
         if task.task_state is not TaskState.COMPLETED:
-            patches.append(Rectangle((task.goal_pos[0] - 0.25, task.goal_pos[1] - 0.25), 0.5, 0.5, facecolor=Colors[0], edgecolor='red', alpha=1))
+            patches.append(Rectangle((task.goal_pos[0] - 0.25, task.goal_pos[1] - 0.25), 0.5, 0.5, facecolor=task_color, edgecolor='red', alpha=1))
 
     for p in patches:
         ax.add_patch(p)
