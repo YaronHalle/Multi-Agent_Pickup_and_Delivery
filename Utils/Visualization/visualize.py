@@ -187,8 +187,8 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, tasks,
 
     aspect = dimensions[0] / dimensions[1]
 
-    fig = plt.figure(frameon=False, figsize=(10 * aspect, 10)) # for small warehouse
-    # fig = plt.figure(frameon=False, figsize=(20 * aspect, 20))  # for big warehouse
+    #fig = plt.figure(frameon=False, figsize=(10 * aspect, 10)) # for small warehouse
+    fig = plt.figure(frameon=False, figsize=(20 * aspect, 20))  # for big warehouse
     ax = fig.add_subplot(111, aspect='equal')
     #fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=None, hspace=None)
 
