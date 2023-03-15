@@ -7,7 +7,8 @@ import scipy.optimize
 from Utils.Visualization.visualize import *
 from Simulations.CBS.cbs import CBS, Environment
 from collections import defaultdict
-
+import time
+from Simulations.LNS_wrapper import *
 
 def is_agent_at_goal(agent_record):
     return agent_record['current_pos'][0] == agent_record['goal'][0] and \
@@ -42,6 +43,9 @@ class ClassicMAPDSolver(object):
         self.assigned_agents = []
         # self.unassigned_agents = []
         self.shelves_locations = set()
+
+        self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
+
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
 
@@ -423,29 +427,6 @@ class ClassicMAPDSolver(object):
 
         return agents_for_assignment
 
-            # # Checking if ENROUTE agents have reached their pickup location and become BUSY
-            # if agent['state'] == AgentState.ENROUTE and is_agent_at_goal(agent):
-            #     # Setting the task's delivery location as the agent's next goal
-            #     task_goal = self.tasks[agent['task_name']].goal_pos
-            #     agent['goal'] = task_goal
-            #
-            #     # Updating the assigned task status
-            #     self.tasks[agent['task_name']].task_state = TaskState.EXECUTED
-            #
-            #     # Marking the agent for path planning determination
-            #     # self.agents_for_path_planning.append(agent)
-            #
-            #     # Updating the agent's state to BUSY
-            #     agent['state'] = AgentState.BUSY
-            #
-            # # Adding non-BUSY agents to potential task/endpoint assignment.
-            # elif agent['state'] == AgentState.BUSY:
-            #     self.agents_for_path_planning.append(agent)
-            # else:
-            #     self.agents_for_assignment.append(agent)
-            #     self.agents_for_path_planning.append(agent)
-            #     self.unassigned_agents.append(agent['name'])
-
     def assign_tasks(self, agents_for_assignments, tasks_to_assign, prohibited_assignments=[]):
         if len(tasks_to_assign) > 0:
             # Computing cost of agents to tasks start location assuming no agent-agent collisions
@@ -642,6 +623,48 @@ class ClassicMAPDSolver(object):
         moving_obstacles = None  # self.get_currently_moving_agents(agents_for_path_planning)
 
         # Updating shelves locations to avoid collisions between busy agents and other shelves (not carried by anyone)
+        # self.update_shelves_locations()
+
+        # debug
+        # for agent_record in agents_for_path_planning:
+        #     print(agent_record['name'], ' goal is ', agent_record['goal'])
+
+        # env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, moving_obstacles,
+        #                   self.shelves_locations, self.a_star_max_iter)
+        # cbs = CBS(env)
+        # mapf_solution = cbs.search()
+
+        # t1 = time.time()
+        self.LNS.initialize(agents_for_path_planning)
+        # t2 = time.time()
+        # print('\tLNS_INIT completed in ', t2-t1, ' [sec]')
+
+        # t1 = time.time()
+        lns_ok, mapf_solution = self.LNS.run()
+        # t2 = time.time()
+        # print('\tLNS_RUN completed in ', t2 - t1, ' [sec]')
+
+        if not lns_ok:
+            print('***** Warning! No LNS solution found. Skipping planning ****')
+            return
+
+        # Updating paths only for agents with re-calculated paths
+        for agent_record in agents_for_path_planning:
+            agent_name = agent_record['name']
+            self.paths[agent_name] = mapf_solution[agent_name]
+
+        # Resetting each affected agent's path index
+        for agent in agents_for_path_planning:
+            agent['current_path_index'] = 0
+
+        return mapf_solution
+
+    def agents_path_planning_obs(self, agents_for_path_planning):
+        # Collecting all the agents that are currently moving and weren't designated for re-path planning. These
+        # agents would be considered as "moving obstacles" to avoid during the following CBS search.
+        moving_obstacles = None  # self.get_currently_moving_agents(agents_for_path_planning)
+
+        # Updating shelves locations to avoid collisions between busy agents and other shelves (not carried by anyone)
         self.update_shelves_locations()
 
         # debug
@@ -668,7 +691,7 @@ class ClassicMAPDSolver(object):
 
         return mapf_solution
 
-    def time_step(self, time):
+    def time_step(self, current_time):
         # agents_for_assignment = []
         # agents_for_path_planning = []
         # tasks_to_assign = []
@@ -677,188 +700,45 @@ class ClassicMAPDSolver(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which agents should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # for agent in self.agents:
-        #     # Checking if ENROUTE agents have reached their pickup location and become BUSY
-        #     if agent['state'] == AgentState.ENROUTE and is_agent_at_goal(agent):
-        #         # Setting the task's delivery location as the agent's next goal
-        #         task_goal = self.tasks[agent['task_name']].goal_pos
-        #         agent['goal'] = task_goal
-        #
-        #         # Updating the assigned task status
-        #         self.tasks[agent['task_name']].task_state = TaskState.EXECUTED
-        #
-        #         # Marking the agent for path planning determination
-        #         agents_for_path_planning.append(agent)
-        #
-        #         # Updating the agent's state to BUSY
-        #         agent['state'] = AgentState.BUSY
-        #
-        #     # Adding non-BUSY agents to potential task/endpoint assignment.
-        #     elif agent['state'] == AgentState.BUSY:
-        #         agents_for_path_planning.append(agent)
-        #     else:
-        #         agents_for_assignment.append(agent)
-        #         agents_for_path_planning.append(agent)
-        #         self.unassigned_agents.append(agent['name'])
         agents_for_assignment = self.determine_agents_for_assignments()
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which tasks should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # for task in self.tasks.values():
-        #     if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
-        #         tasks_to_assign.append(task)
         tasks_to_assign = self.collect_tasks_for_assignment()
-
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # Task Assignment
-        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # if len(tasks_to_assign) > 0:
-        #     # Computing cost of agents to tasks start location assuming no agent-agent collisions
-        #     agent2task_cost = {}
-        #     for agent in agents_for_assignment:
-        #         for task in tasks_to_assign:
-        #             if agent['name'] not in agent2task_cost:
-        #                 agent2task_cost[agent['name']] = {}
-        #             agent['goal'] = task.start_pos
-        #             env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations, self.a_star_max_iter)
-        #             path = env.a_star.search(agent['name'])
-        #             agent2task_cost[agent['name']][task.task_name] = len(path)
-        #             del agent['goal']
-        #             del env
-        #
-        #     # Populating cost_mat, rows are agents and columns are tasks
-        #     cost_mat = []
-        #     for agent_name in agent2task_cost:
-        #         for task_name in agent2task_cost[agent_name]:
-        #             cost_mat.append(agent2task_cost[agent_name][task_name])
-        #     n_agents = len(agents_for_assignment)
-        #     n_tasks = len(tasks_to_assign)
-        #     cost_ar = np.array(cost_mat).reshape((n_agents, n_tasks))
-        #
-        #     # Computing optimal assignment using the Hungarian algorithm
-        #     agent_id, task_id = scipy.optimize.linear_sum_assignment(cost_ar)
-        #
-        #     # Updating the assigned and unassigned agents lists
-        #     for task_i in range(len(task_id)):
-        #         # Retrieving assigned task name and setting its status to ASSIGNED (in case it previously was PENDING)
-        #         task_name = list(tasks_to_assign)[task_id[task_i]].task_name
-        #         # Setting the new assigned task state to ASSIGNED
-        #         self.tasks[task_name].task_state = TaskState.ASSIGNED
-        #
-        #         # Updating the assigned agent goal and status
-        #         assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
-        #         agent_record = self.agents_dict[assigned_agent_name]
-        #         agent_record['goal'] = self.tasks[task_name].start_pos
-        #
-        #         # Checking if agent was previously IDLE and therefore its endpoint should be released
-        #         if agent_record['state'] == AgentState.IDLE:
-        #             agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
-        #             self.free_non_task_endpoints.append(agent_pos)
-        #         agent_record['state'] = AgentState.ENROUTE
-        #         # Checking if the assigned agent was originally assigned to a different task. If so, the previous
-        #         # task becomes PENDING.
-        #         if 'task_name' in agent_record.keys():
-        #             prev_task_name = agent_record['task_name']
-        #             if task_name != prev_task_name and self.tasks_to_agents[prev_task_name] == assigned_agent_name:
-        #                 self.tasks[prev_task_name].task_state = TaskState.PENDING
-        #                 del self.tasks_to_agents[prev_task_name]
-        #         agent_record['task_name'] = task_name
-        #         self.agents_to_tasks[assigned_agent_name] = task_name
-        #
-        #         # Check if this task was previously assigned to a different former agent. If so, change
-        #         # the former agent's status to FREE and make additional updates for correct bookkeeping.
-        #         if task_name in self.tasks_to_agents and self.tasks_to_agents[task_name] != assigned_agent_name:
-        #             prev_assigned_agent_name = self.tasks_to_agents[task_name]
-        #             prev_agent_record = self.agents_dict[prev_assigned_agent_name]
-        #
-        #             prev_agent_record['state'] == AgentState.FREE
-        #             if 'goal' in prev_agent_record.keys():
-        #                 print('Warning! found a goal property where there souldn\'t be')
-        #             del self.agents_to_tasks[prev_assigned_agent_name]
-        #             del self.tasks_to_agents[task_name]
-        #
-        #         # Making sure task is filed in the task and agents mappings
-        #         if task_name not in self.tasks_to_agents:
-        #             # Updating records of mapping between agents and tasks
-        #             self.agents_to_tasks[assigned_agent_name] = task_name
-        #             self.tasks_to_agents[task_name] = assigned_agent_name
-        #
-        #         # Updating the tracking of unassigned agents for future endpoints assignment
-        #         # agents_for_path_planning.append(agent)
-        #         # self.assigned_agents.append(assigned_agent_name)
-        #         self.unassigned_agents.remove(assigned_agent_name)
         self.assign_tasks(agents_for_assignment, tasks_to_assign)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Assign non-task endpoints to the free agents that weren't assigned tasks
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # if len(self.unassigned_agents) > 0:
-        #     # Do not consider endpoints assignments for an IDLE agent (meaning it is already located in some endpoint)
-        #     temp_unassigned_agents = deepcopy(self.unassigned_agents)
-        #     for agent_name in temp_unassigned_agents:
-        #         agent_record = self.agents_dict[agent_name]
-        #         if agent_record['state'] == AgentState.IDLE:
-        #             self.unassigned_agents.remove(agent_name)
-        #             agents_for_path_planning.remove(agent_record)
-        #     del temp_unassigned_agents
-        #
-        #     # Check if there are any FREE agents left that need to be assigned to some endpoint
-        #     if len(self.unassigned_agents) > 0:
-        #         self.assign_non_task_endpoints_to_free_agents()
-        self.assign_non_task_endpoints_to_free_agents(agents_for_path_planning)
+        self.assign_non_task_endpoints_to_free_agents()
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Path Planning using CBS. Assigned task are planned towards their task
         # pickup location whereas free agents are planned towards their assigned
         # non-task endpoint location.
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Plotting for debug
-        # show_current_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents, self.tasks, time)
-        # show_current_state(dimensions, obstacles, non_task_endpoints, agents, solver.tasks, simulation.time))
-        for agent_record in self.agents:
-            print(agent_record['name'], ' is in state = ', agent_record['state'])
+        # show_current_state(self.dimensions, self.obstacles, self.non_task_endpoints, self.agents, self.tasks, current_time)
+        # for agent_record in self.agents:
+        #     print(agent_record['name'], ' is in state = ', agent_record['state'])
+        agents_for_path_planning = self.determine_agents_for_path_planning()
 
         # Run CBS search only if there are agents that need to path plan for
         if len(agents_for_path_planning) > 0:
-            # # Collecting all the agents that are currently moving and weren't designated for re-path planning. These
-            # # agents would be considered as "moving obstacles" to avoid during the following CBS search.
-            # moving_obstacles = None  # self.get_currently_moving_agents(agents_for_path_planning)
-            #
-            # # Updating shelves locations to avoid collisions between busy agents and other shelves (not carried by anyone)
-            # self.update_shelves_locations()
-            #
-            # for agent_record in agents_for_path_planning:
-            #     print(agent_record['name'],' goal is ',agent_record['goal'])
-            #
-            # env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, moving_obstacles,
-            #                   self.shelves_locations, self.a_star_max_iter)
-            # cbs = CBS(env)
-            # mapf_solution = cbs.search()
-            # mapf_solution = self.plan_paths_for_all_agents(agents_for_path_planning)
-            self.plan_paths_for_all_agents(agents_for_path_planning)
-
-            # if len(mapf_solution) == 0:
-            #     print('***** Warning! No CBS solution found. Skipping planning ****')
-            #     return
-            #
-            # # Updating paths only for agents with re-calculated paths
-            # for agent_record in agents_for_path_planning:
-            #     agent_name = agent_record['name']
-            #     self.paths[agent_name] = mapf_solution[agent_name]
-            #
-            # # Resetting each affected agent's path index
-            # for agent in agents_for_path_planning:
-            #     agent['current_path_index'] = 0
+            t1 = time.time()
+            self.agents_path_planning(agents_for_path_planning)
+            t2 = time.time()
+            print('\tMAPF completed in ', t2-t1, ' [sec]')
 
             # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             # Debug Printing
             # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-            print('paths count = ', len(self.paths))
-            if len(self.paths) == 0:
-                print('Error: No CBS solution')
-            for task_name in self.tasks_to_agents:
-                print(task_name, ' --> ', self.tasks_to_agents[task_name])
-            print('# free endpoints = ', len(self.free_non_task_endpoints))
+            # print('paths count = ', len(self.paths))
+            # if len(self.paths) == 0:
+            #     print('Error: No CBS solution')
+            # for task_name in self.tasks_to_agents:
+            #     print(task_name, ' --> ', self.tasks_to_agents[task_name])
+            # print('# free endpoints = ', len(self.free_non_task_endpoints))
 
     def get_currently_moving_agents(self, agents_for_path_planning):
         # Identify all agents that weren't considered for path planning and are currently moving (Non IDLE agents)

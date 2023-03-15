@@ -11,7 +11,7 @@ class TaskGenerator(object):
     def __init__(self, starts, goals, sampled_starts=None, sampled_goals=None):
         self.next_start_sample_index = -1
         self.next_goal_sample_index = -1
-        self.n_samples = 10000000
+        self.n_samples = 1000000
         #self.n_samples = 10
         self.starts = set()
         self.goals = set()

@@ -9,7 +9,7 @@ import RoothPath
 from Simulations.tasks_and_delays_maker import *
 from Simulations.task_generator import *
 from Simulations.CBS.cbs import CBS, Environment
-
+import time
 import subprocess
 import sys
 from Utils.Visualization.visualize import *
@@ -66,7 +66,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Save data to JSON file
     # ----------------------------------------------------------------------
-    if True:
+    if False:
         tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'])
         data = dict()
         data['agents'] = agents
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Loading data from JSON file
     # ----------------------------------------------------------------------
-    if False:
+    if True:
         with open("data_file.json", "r") as read_file:
             data = json.load(read_file)
             agents = data['agents']
@@ -102,15 +102,13 @@ if __name__ == '__main__':
                                sampled_starts_positions, sampled_goals_positions)
 
     # Instantiate a Solver object
-    # solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
-    solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    # solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
 
     # Instantiate a Simulation object
     simulation = Simulation(solver.get_tasks(), agents, solver)
     simulation.simulation_end_time = simulation_end_time
     new_tasks = []
-
-
 
     while not simulation.simulation_ended():
         print('---------------------- Time = ', simulation.time, ' ----------------------')
@@ -118,48 +116,6 @@ if __name__ == '__main__':
         # Gathering new tasks introduced in the current time step
         new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 10, simulation.time)
 
-        # new_tasks_buffer = []
-        # t1 = Task()
-        # t1.task_name = 'task1'
-        # #t1.start_pos = tuple([27, 2])
-        # t1.goal_pos = tuple([24, 2])
-        # t1.task_state = TaskState.EXECUTED
-        # solver.baseline_solver.agents_dict['agent1']['state'] = AgentState.BUSY
-        # solver.baseline_solver.agents_dict['agent1']['task_name'] = 'task1'
-        # solver.baseline_solver.agents_dict['agent1']['goal'] = t1.goal_pos
-        # solver.baseline_solver.agents_to_tasks['agent1'] = 'task1'
-        # solver.baseline_solver.tasks_to_agents['task1'] = 'agent1'
-        #
-        # t2 = Task()
-        # t2.task_name = 'task2'
-        # #t2.start_pos = tuple([5, 2])
-        # t2.goal_pos = tuple([6, 2])
-        # t2.task_state = TaskState.EXECUTED
-        # solver.baseline_solver.agents_dict['agent2']['state'] = AgentState.BUSY
-        # solver.baseline_solver.agents_dict['agent2']['task_name'] = 'task2'
-        # solver.baseline_solver.agents_dict['agent2']['goal'] = t2.goal_pos
-        # solver.baseline_solver.agents_to_tasks['agent2'] = 'task2'
-        # solver.baseline_solver.tasks_to_agents['task2'] = 'agent2'
-        #
-        # t3 = Task()
-        # t3.task_name = 'task3'
-        # t3.start_pos = tuple([2, 2])
-        # t3.goal_pos = tuple([0, 1])
-        # t3.task_state = TaskState.PENDING
-        #
-        # new_tasks_buffer.append(t1)
-        # new_tasks_buffer.append(t2)
-        # new_tasks_buffer.append(t3)
-        #
-        # solver.baseline_solver.update_shelves_locations()
-        # env = Environment(solver.baseline_solver.dimensions, solver.baseline_solver.agents, solver.baseline_solver.obstacles,
-        #                   [], solver.baseline_solver.shelves_locations, solver.baseline_solver.a_star_max_iter)
-        # cbs = CBS(env)
-        # mapf_solution = cbs.search()
-        # [0,1], [27,2], [4,2], [2,2]
-
-        # for t in new_tasks_buffer:
-        #     solver.tasks[t.task_name] = t
         solver.add_tasks(new_tasks_buffer)
 
         # Check if it is time to invoke the solver
@@ -182,10 +138,6 @@ if __name__ == '__main__':
         # Incrementing simulation time by 1
         simulation.time = simulation.time + 1
 
-        # for task_name in solver.tasks.keys():
-        #     solver.completed_tasks_times[task_name] = 15
-    # if len(simulation.actual_paths) == 0:
-    #     print('Warning: simulation.actual_paths is empty')
     print('---------------------- End of Simulation  ----------------------')
 
     cost = 0

@@ -72,7 +72,7 @@ class AStar:
             neighbor_list = self.get_neighbors(current)
 
             for neighbor in neighbor_list:
-                # Filtering out locations that collide with a shelf in case thea agent is BUSY (already carries a shelf)
+                # Filtering out locations that collide with a shelf in case the agent is BUSY (already carries a shelf)
                 if is_agent_busy and tuple([neighbor.location.x, neighbor.location.y]) in self.shelves_locations:
                     continue
 
