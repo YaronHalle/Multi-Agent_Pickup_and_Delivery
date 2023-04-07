@@ -129,12 +129,15 @@ class Simulation(object):
         tasks_counters = {TaskState.PENDING.value: 0, TaskState.ASSIGNED.value: 0, TaskState.EXECUTED.value: 0, TaskState.COMPLETED.value: 0}
         for task in tasks.values():
             tasks_counters[task.task_state.value] += 1
-        # tasks_counters = {TaskState['PENDING'].value: 0, TaskState.ASSIGNED: 0, TaskState.EXECUTED: 0,
-        #                       TaskState.COMPLETED: 0}
-        # for task in self.solver.tasks.values():
-        #     tasks_counters[TaskState[task.task_state].value] += 1
 
         self.statistics[self.time]['tasks_counters'] = tasks_counters
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Saving task splitting statistics
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        if self.time in self.solver.splitting_stats:
+            self.statistics[self.time]['non_atomic_perf'] = self.solver.splitting_stats[self.time]
+        else:
+            self.statistics[self.time]['non_atomic_perf'] = [0, 0]
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Computing throughput
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -191,7 +194,7 @@ class Simulation(object):
         if self.time == 0:
             # Creating the JSON file for the first time
             with open(stats_filename, "w") as write_file:
-                json.dump(self.statistics[self.time], write_file)
+                json.dump(self.statistics, write_file)
         else:
             with open(stats_filename, "r") as read_file:
                 data = json.load(read_file)

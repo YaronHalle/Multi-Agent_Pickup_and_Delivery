@@ -11,9 +11,13 @@ import time
 from Simulations.LNS_wrapper import *
 
 def is_agent_at_goal(agent_record):
-    return agent_record['current_pos'][0] == agent_record['goal'][0] and \
-        agent_record['current_pos'][1] == agent_record['goal'][1]
-
+    # In case agent hasn't been assigned with a goal due to MAPF failure, making sure the function
+    # returns 'False' and doesn't crash
+    if 'goal' in agent_record:
+        return agent_record['current_pos'][0] == agent_record['goal'][0] and \
+            agent_record['current_pos'][1] == agent_record['goal'][1]
+    else:
+        return False
 
 class ClassicMAPDSolver(object):
     def __init__(self, agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=1e6):
@@ -43,8 +47,13 @@ class ClassicMAPDSolver(object):
         self.assigned_agents = []
         # self.unassigned_agents = []
         self.shelves_locations = set()
+        self.task_assign_cache = {}
+        self.splitting_stats = {}
 
+        # Small Warehouse
         self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
+        # Big Warehouse
+        # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
 
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
@@ -238,7 +247,7 @@ class ClassicMAPDSolver(object):
 
         # Making sure at least one FREE agent left that is required to be assigned to some endpoint
         if len(unassigned_agents) == 0:
-            return
+            return 0
 
         # Computing cost of free agents to endpoints assuming no agent-agent collisions
         agent2task_cost = {}
@@ -279,6 +288,16 @@ class ClassicMAPDSolver(object):
             currently_assigned_endpoints.add(endpoint)
             # Resetting agent's trajectory index since a path is about to be re-computed
             agent_record['current_path_index'] = 0
+
+        return len(unassigned_agents)
+
+    def get_enroute_and_busy_agents_for_path_planning(self):
+        agents_for_path_planning = []
+        for agent in self.agents:
+            if agent['state'] == AgentState.ENROUTE or agent['state'] == AgentState.BUSY:
+                agents_for_path_planning.append(agent)
+
+        return agents_for_path_planning
 
     def determine_agents_for_path_planning(self):
         agents_for_path_planning = []
@@ -416,9 +435,6 @@ class ClassicMAPDSolver(object):
         return tasks_to_assign
 
     def determine_agents_for_assignments(self):
-        # self.agents_for_path_planning = []
-        # self.unassigned_agents.clear()
-
         agents_for_assignment = []
         # Scanning for non-busy agents for potential tasks assignments
         for agent in self.agents:
@@ -440,16 +456,23 @@ class ClassicMAPDSolver(object):
                     if [agent['name'], task.task_name] in prohibited_assignments:
                         agent2task_cost[agent['name']][task.task_name] = float('inf')
                     else:
-                        agent['goal'] = task.start_pos
-                        env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
-                                          self.a_star_max_iter)
-                        path = env.a_star.search(agent['name'])
-                        if path is not False:
-                            agent2task_cost[agent['name']][task.task_name] = len(path)
-                        else:
-                            agent2task_cost[agent['name']][task.task_name] = float('inf')
-                        del agent['goal']
-                        del env
+                        # Check if current assignment is already available in the cache memory
+                        agent_task_tuple = tuple([agent['name'], task.task_name])
+                        if agent_task_tuple in self.task_assign_cache:
+                            agent2task_cost[agent['name']][task.task_name] = self.task_assign_cache[agent_task_tuple]
+                        else:  # no cache to use, need to invoke A* and compute cost
+                            agent['goal'] = task.start_pos
+                            env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
+                                              self.a_star_max_iter)
+                            path = env.a_star.search(agent['name'])
+                            if path is not False:
+                                agent2task_cost[agent['name']][task.task_name] = len(path)
+                                # Storing to cache memory
+                                self.task_assign_cache[agent_task_tuple] = len(path)
+                            else:
+                                agent2task_cost[agent['name']][task.task_name] = float('inf')
+                            del agent['goal']
+                            del env
 
                 if 'goal' in agent.keys():
                     del agent['goal']
@@ -522,7 +545,7 @@ class ClassicMAPDSolver(object):
             return agent_task_cost
 
     def compute_prev_cbs_plan_cost(self):
-        prev_cost = self.compute_cbs_plan_cost(self.paths)
+        prev_cost = self.compute_mapf_plan_cost(self.paths)
 
         # Reducing -1 step for each EN-ROUTE or BUSY agent due to a single step from previous cycle
         for agent in self.agents:
@@ -531,9 +554,10 @@ class ClassicMAPDSolver(object):
 
         return prev_cost
 
-    def compute_cbs_plan_cost(self, mapf_solution):
+    def compute_mapf_plan_cost(self, mapf_solution):
         total_pickup_cost = 0
         total_delivery_cost = 0
+        self.update_shelves_locations()
 
         for agent_name in mapf_solution:
             agent_record = self.agents_dict[agent_name]
@@ -543,7 +567,10 @@ class ClassicMAPDSolver(object):
                 agent_path_length = len(mapf_solution[agent_name])
                 total_pickup_cost += (agent_path_length - agent_path_index) - 1
 
-                # Adding the heuristic cost from pickup to delivery destination
+                # Adding the heuristic cost from pickup to delivery destination.
+                # The following section was commented during the integration of LNS to cut
+                # the running times. ENROUTE agents will have to wait for reaching their pickup
+                # location and only then the LNS will compute their path towards the delivery location.
                 task_name = agent_record['task_name']
                 task = self.tasks[task_name]
                 tentative_agent = deepcopy(agent_record)
@@ -617,25 +644,97 @@ class ClassicMAPDSolver(object):
 
         return total_pickup_cost + total_delivery_cost
 
-    def agents_path_planning(self, agents_for_path_planning):
-        # Collecting all the agents that are currently moving and weren't designated for re-path planning. These
-        # agents would be considered as "moving obstacles" to avoid during the following CBS search.
-        moving_obstacles = None  # self.get_currently_moving_agents(agents_for_path_planning)
-
-        # Updating shelves locations to avoid collisions between busy agents and other shelves (not carried by anyone)
-        # self.update_shelves_locations()
-
-        # debug
-        # for agent_record in agents_for_path_planning:
-        #     print(agent_record['name'], ' goal is ', agent_record['goal'])
-
-        # env = Environment(self.dimensions, agents_for_path_planning, self.obstacles, moving_obstacles,
-        #                   self.shelves_locations, self.a_star_max_iter)
-        # cbs = CBS(env)
-        # mapf_solution = cbs.search()
+    def agents_path_planning(self, agents_for_path_planning, time_limit=None):
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # First, computing paths for all agents according to their goal properties
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # t1 = time.time()
+        self.update_shelves_locations()
+        self.LNS.initialize(agents_for_path_planning, self.shelves_locations)
+        # t2 = time.time()
+        # print('\tLNS_INIT completed in ', t2-t1, ' [sec]')
 
         # t1 = time.time()
-        self.LNS.initialize(agents_for_path_planning)
+        lns_ok, first_phase_mapf_solution = self.LNS.run(time_limit)
+        # t2 = time.time()
+        # print('\tLNS_RUN completed in ', t2 - t1, ' [sec]')
+
+        if not lns_ok:
+            # print('***** Warning! No LNS solution found. Skipping planning ****')
+            return None
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Secondly, computing a tentative path for all ENROUTE agents after they 
+        # arrived at their pickup location and need to plan a path to their
+        # delivery location
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        enroute_agents = []
+        shelves_copy = deepcopy(self.shelves_locations)
+        for agent in agents_for_path_planning:
+            if agent['state'] == AgentState.ENROUTE:
+                # Creating a copy of the agent for not damaging its goal and path properties
+                agent_copy = deepcopy(agent)
+
+                # Updating the agent copy's properties to simulate its arrival at the pickup location
+                agent_copy['state'] = AgentState.BUSY
+                task_name = agent_copy['task_name']
+                task = self.tasks[task_name]
+                agent_copy['current_pos'] = task.start_pos
+                agent_copy['goal'] = task.goal_pos
+
+                # Removing the agent pickup shelf from the shelves list since they shelf is picked up
+                shelves_copy.remove(task.start_pos)
+
+                # Adding the modified ENROUTE agent to the list for path planning
+                enroute_agents.append(agent_copy)
+
+        self.LNS.initialize(enroute_agents, shelves_copy)
+        lns_ok, second_phase_mapf_solution = self.LNS.run(time_limit)
+
+        if not lns_ok:
+            # print('***** Warning! No LNS solution found. Skipping planning ****')
+            return None
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        # Both first and second phase planning are feasible, computing plan
+        # costs (pickup+delivery paths' costs) and updating agents' paths
+        # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        total_pickup_cost = 0
+        total_delivery_cost = 0
+
+        for agent_name in first_phase_mapf_solution:
+            agent_record = self.agents_dict[agent_name]
+            # Summing the pickup paths' cost of EN-ROUTE agents
+            if agent_record['state'] == AgentState.ENROUTE:
+                agent_path_index = agent_record['current_path_index']
+                agent_path_length = len(first_phase_mapf_solution[agent_name])
+                total_pickup_cost += (agent_path_length - agent_path_index) - 1
+
+                # Adding the delivery cost for enroute agents using the second phase LNS run
+                enroute_agent_path_from_pickup_to_delivery = second_phase_mapf_solution[agent_name]
+                total_delivery_cost += len(enroute_agent_path_from_pickup_to_delivery)
+
+            # Summing the delivery paths' cost of BUSY agents
+            if agent_record['state'] == AgentState.BUSY:
+                agent_path_index = agent_record['current_path_index']
+                agent_path_length = len(first_phase_mapf_solution[agent_name])
+                total_delivery_cost += (agent_path_length - agent_path_index) - 1
+
+        total_plan_cost = total_pickup_cost + total_delivery_cost
+
+        # Updating paths only for agents from the first phase LNS run
+        for agent_record in agents_for_path_planning:
+            agent_name = agent_record['name']
+            self.paths[agent_name] = first_phase_mapf_solution[agent_name]
+
+        # Resetting each affected agent's path index
+        for agent in agents_for_path_planning:
+            agent['current_path_index'] = 0
+
+        return total_plan_cost
+
+    def agents_path_planning_backup(self, agents_for_path_planning):
+        # t1 = time.time()
+        self.update_shelves_locations()
+        self.LNS.initialize(agents_for_path_planning, self.shelves_locations)
         # t2 = time.time()
         # print('\tLNS_INIT completed in ', t2-t1, ' [sec]')
 
@@ -646,7 +745,7 @@ class ClassicMAPDSolver(object):
 
         if not lns_ok:
             print('***** Warning! No LNS solution found. Skipping planning ****')
-            return
+            return None
 
         # Updating paths only for agents with re-calculated paths
         for agent_record in agents_for_path_planning:
@@ -659,7 +758,8 @@ class ClassicMAPDSolver(object):
 
         return mapf_solution
 
-    def agents_path_planning_obs(self, agents_for_path_planning):
+    # TODO remove this old version of path planning method that uses CBS as basic planner
+    def agents_path_planning_obs2(self, agents_for_path_planning):
         # Collecting all the agents that are currently moving and weren't designated for re-path planning. These
         # agents would be considered as "moving obstacles" to avoid during the following CBS search.
         moving_obstacles = None  # self.get_currently_moving_agents(agents_for_path_planning)
@@ -759,3 +859,8 @@ class ClassicMAPDSolver(object):
                     temp_tuple = (x, y, t)
                     moving_obstacles[temp_tuple] = agent_record['name']
         return moving_obstacles
+
+    def remove_task_from_cache(self, task_name):
+        for cache_tuple in deepcopy(self.task_assign_cache):
+            if task_name == cache_tuple[1]:
+                del self.task_assign_cache[cache_tuple]

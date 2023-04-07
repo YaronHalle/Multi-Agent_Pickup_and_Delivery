@@ -48,16 +48,107 @@ def plot_perf_metrics(data):
 
     plt.show()
 
+def compare_atomic_vs_non_atomics(atomic_data, non_atomic_data):
+    time_ar = [int(str) for str in list(atomic_data.keys())]
+    throughput_atomic_ar = [record['avg_throughput'] for record in atomic_data.values()]
+    servicetime_atomic_ar = [record['avg_service_time'] for record in atomic_data.values()]
+    delaytime_atomic_ar = [record['avg_delay_time'] for record in atomic_data.values()]
+
+    throughput_non_atomic_ar = [record['avg_throughput'] for record in non_atomic_data.values()]
+    servicetime_non_atomic_ar = [record['avg_service_time'] for record in non_atomic_data.values()]
+    delaytime_non_atomic_ar = [record['avg_delay_time'] for record in non_atomic_data.values()]
+
+    fig, (ax1, ax2, ax3) = plt.subplots(3, sharex=True)
+    fig.suptitle('Atomic vs Non-Atomic performance comparison', fontweight='bold')
+
+    # Average throughput
+    ax1.plot(time_ar, throughput_atomic_ar, color='b',
+             label='Atomic\n' + '[Last value={:.2f}'.format(throughput_atomic_ar[-1]) + ']')
+    ax1.plot(time_ar, throughput_non_atomic_ar, color='r',
+             label='Non-Atomic\n' + '[Last value={:.2f}'.format(throughput_non_atomic_ar[-1]) + ']')
+    ax1.grid()
+    ax1.legend()
+    ax1.set_ylabel('Average Throughput')
+
+    # Average service time
+    ax2.plot(time_ar, servicetime_atomic_ar, color='b',
+             label='Atomic\n' + '[Last value={:.2f}'.format(servicetime_atomic_ar[-1]) + ']')
+    ax2.plot(time_ar, servicetime_non_atomic_ar, color='r',
+             label='Non-Atomic\n' + '[Last value={:.2f}'.format(servicetime_non_atomic_ar[-1]) + ']')
+    ax2.grid()
+    ax2.legend()
+    ax2.set_ylabel('Average Service Time')
+
+    # Average delay time
+    ax3.plot(time_ar, delaytime_atomic_ar, color='b',
+             label='Atomic\n' + '[Last value={:.2f}'.format(delaytime_atomic_ar[-1]) + ']')
+    ax3.plot(time_ar, delaytime_non_atomic_ar, color='r',
+             label='Non-Atomic\n' + '[Last value={:.2f}'.format(delaytime_non_atomic_ar[-1]) + ']')
+    ax3.grid()
+    ax3.legend()
+    ax3.set_xlabel('Iteration number')
+    ax3.set_ylabel('Average Delay Time')
+
+    plt.show()
+
+def plot_non_atomic_performance(non_atomic_data):
+    time_ar = [int(str) for str in list(non_atomic_data.keys())]
+    agents_involved_ar = [record['non_atomic_perf'][0] for record in non_atomic_data.values()]
+    improvement_ar = [record['non_atomic_perf'][1] for record in non_atomic_data.values()]
+
+    splitting_counter = 0
+    for record in non_atomic_data.values():
+        if record['non_atomic_perf'][0] > 0:
+            splitting_counter += 1
+
+    portion_of_splittings = round(splitting_counter / len(time_ar) * 100)
+
+    # fig_title = 'Steady state throughput = ' + '{:.2f}'.format(throughput_ar[-1]) + '\n' + \
+    #             'Steady state service time = ' + '{:.2f}'.format(servicetime_ar[-1]) + '\n' + \
+    #             'Steady state delay time = ' + '{:.2f}'.format(delaytime_ar[-1])
+
+    fig, (ax1, ax2) = plt.subplots(2, sharex=True)
+    fig.suptitle(f'Non-Atomic MAPD performance\n(Splitting frequency : {portion_of_splittings}%)', fontweight='bold')
+    plt.axes(ax1)
+    plt.bar(time_ar, agents_involved_ar, width=1.5)
+    # ax1.grid()
+    ax1.set_ylabel('Number of agents \nthat dropped shelves')
+    # ax1.legend()
+    # ax1.title(fig_title)
+
+    plt.axes(ax2)
+    plt.bar(time_ar, improvement_ar, color='r', width=1.5)
+    # ax2.grid()
+    ax2.set_ylabel('% improvement in SoC')
+    # ax2.legend()
+
+    plt.xlabel('Iteration number')
+
+    plt.show()
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-stats_file", help="stats_file.json full path")
-    args = parser.parse_args()
+    combined_stats_file = b"D:/GitHub/Multi-Agent_Pickup_and_Delivery/Utils/Visualization/combined_5_runs_stats_file.json"
+    with open(combined_stats_file, "r") as read_file:
+        combined_data = json.load(read_file)
+    atomic_data = combined_data['atomic']
+    non_atomic_data = combined_data['non_atomic']
+    compare_atomic_vs_non_atomics(atomic_data, non_atomic_data)
 
-    with open(args.stats_file, "r") as read_file:
-        data = json.load(read_file)
+    atomic_file = b"D:/Results/07_04_2023_1000steps_small_warehouse_atomic/stats_file.json"
+    with open(atomic_file, "r") as read_file:
+        atomic_data = json.load(read_file)
 
-    plot_tasks_per_states(data)
-    plot_perf_metrics(data)
+    # Remove all keys greater than 438
+    # for i in range(439, len(atomic_data)):
+    #     del atomic_data[str(i)]
+
+    non_atomic_file = b"D:/Results/07_04_2023_1000steps_small_warehouse_non_atomic/stats_file.json"
+    with open(non_atomic_file, "r") as read_file:
+        non_atomic_data = json.load(read_file)
+
+    compare_atomic_vs_non_atomics(atomic_data, non_atomic_data)
+
+    plot_non_atomic_performance(non_atomic_data)
 
     # del data['tasks_counters']
     # del data['current_step_throughput']

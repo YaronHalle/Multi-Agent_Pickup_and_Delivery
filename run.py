@@ -17,7 +17,7 @@ from Utils.Visualization.visualize import *
 if __name__ == '__main__':
 
     # Loading command lines arguments
-    #random.seed(1234)
+    random.seed(989898)
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', help='Robustness parameter for k-TP', default=1, type=int)
     parser.add_argument('-p', help='Robustness parameter for p-TP', default=None, type=float)
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     obstacles = param['map']['obstacles']
     non_task_endpoints = param['map']['non_task_endpoints']
     agents = param['agents']
-    simulation_end_time = 3000 #param['simulation_end_time']
+    simulation_end_time = 1000 #param['simulation_end_time']
 
     # Adding the current_pos field for each agent
     for agent in agents:
@@ -102,8 +102,8 @@ if __name__ == '__main__':
                                sampled_starts_positions, sampled_goals_positions)
 
     # Instantiate a Solver object
-    solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
-    # solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    # solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
 
     # Instantiate a Simulation object
     simulation = Simulation(solver.get_tasks(), agents, solver)
@@ -112,6 +112,11 @@ if __name__ == '__main__':
 
     while not simulation.simulation_ended():
         print('---------------------- Time = ', simulation.time, ' ----------------------')
+
+
+        # Plotting
+        show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(),
+                           simulation.time)
 
         # Gathering new tasks introduced in the current time step
         new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 10, simulation.time)
@@ -124,8 +129,6 @@ if __name__ == '__main__':
             new_tasks.clear()
             cycles_since_last_solver_run = 0
             # simulation.actual_paths = solver.paths
-
-        show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(), simulation.time)
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 
