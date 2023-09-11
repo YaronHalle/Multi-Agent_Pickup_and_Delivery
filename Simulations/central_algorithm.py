@@ -51,9 +51,9 @@ class ClassicMAPDSolver(object):
         self.splitting_stats = {}
 
         # Small Warehouse
-        self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
+        # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
         # Big Warehouse
-        # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
+        self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
 
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
@@ -461,6 +461,16 @@ class ClassicMAPDSolver(object):
                         if agent_task_tuple in self.task_assign_cache:
                             agent2task_cost[agent['name']][task.task_name] = self.task_assign_cache[agent_task_tuple]
                         else:  # no cache to use, need to invoke A* and compute cost
+                            # TODO DEBUG
+                            # A* search was replaced by a simple manhattan distance for speed-up
+                            agent_pos = agent['current_pos']
+                            task_pos = task.start_pos
+                            distance = abs(agent_pos[0] - task_pos[0]) + abs(agent_pos[1] - task_pos[1])
+                            agent2task_cost[agent['name']][task.task_name] = distance
+                            # Storing to cache memory
+                            self.task_assign_cache[agent_task_tuple] = distance
+
+                            '''
                             agent['goal'] = task.start_pos
                             env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
                                               self.a_star_max_iter)
@@ -473,6 +483,7 @@ class ClassicMAPDSolver(object):
                                 agent2task_cost[agent['name']][task.task_name] = float('inf')
                             del agent['goal']
                             del env
+                            '''
 
                 if 'goal' in agent.keys():
                     del agent['goal']
@@ -687,8 +698,15 @@ class ClassicMAPDSolver(object):
                 # Adding the modified ENROUTE agent to the list for path planning
                 enroute_agents.append(agent_copy)
 
+        # t1 = time.time()
         self.LNS.initialize(enroute_agents, shelves_copy)
+        # t2 = time.time()
+        # print('\tLNS_INIT completed in ', t2 - t1, ' [sec]')
+
+        # t1 = time.time()
         lns_ok, second_phase_mapf_solution = self.LNS.run(time_limit)
+        # t2 = time.time()
+        # print('\tLNS_RUN completed in ', t2 - t1, ' [sec]')
 
         if not lns_ok:
             # print('***** Warning! No LNS solution found. Skipping planning ****')

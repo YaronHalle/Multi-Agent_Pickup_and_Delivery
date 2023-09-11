@@ -17,7 +17,7 @@ from Utils.Visualization.visualize import *
 if __name__ == '__main__':
 
     # Loading command lines arguments
-    random.seed(989898)
+    random.seed(601222111)
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', help='Robustness parameter for k-TP', default=1, type=int)
     parser.add_argument('-p', help='Robustness parameter for p-TP', default=None, type=float)
@@ -115,8 +115,8 @@ if __name__ == '__main__':
 
 
         # Plotting
-        show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(),
-                           simulation.time)
+        # show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(),
+        #                    simulation.time)
 
         # Gathering new tasks introduced in the current time step
         new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 10, simulation.time)

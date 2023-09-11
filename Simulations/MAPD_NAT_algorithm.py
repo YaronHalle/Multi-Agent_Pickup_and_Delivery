@@ -20,8 +20,8 @@ class NonAtomicSolver(object):
         self.prohibited_assignments = []
         self.splitting_stats = self.baseline_solver.splitting_stats
         self.agents_perm_table = set()
-        self.short_lns_time_out = 5 # [sec]
-        self.long_lns_time_out = 60 # [sec]
+        self.short_lns_time_out = 1 # [sec]
+        self.long_lns_time_out = 10 # [sec]
 
     def get_agents(self):
         return self.baseline_solver.get_agents()
@@ -34,6 +34,9 @@ class NonAtomicSolver(object):
     def move_agents(self, current_time):
         self.baseline_solver.move_agents(current_time)
 
+    def manhattan_distance(self, p1, p2):
+        return abs(p1[0] - p2[0]) + abs(p1[1] - p2[1])
+
     def get_agents_names_for_task_splitting(self):
         # Collecting all BUSY agents that have already moved by at least a single step from the shelf's original position
         busy_agents_names = []
@@ -41,8 +44,15 @@ class NonAtomicSolver(object):
             if agent_record['state'] == AgentState.BUSY:
                 task_name = agent_record['task_name']
                 task = self.baseline_solver.tasks[task_name]
-                if agent_record['current_pos'] != task.start_pos:
+
+                travelled_distance_from_pickup = \
+                    self.manhattan_distance(agent_record['current_pos'], task.start_pos)
+                if travelled_distance_from_pickup > 10:
                     busy_agents_names.append(agent_record['name'])
+
+                # TODO replacing the single step distance to manhattan distance computation
+                # if agent_record['current_pos'] != task.start_pos:
+                #     busy_agents_names.append(agent_record['name'])
         return busy_agents_names
 
     def permutations_recursion(self, agents_flags, index_to_start, max_agents, used_agents):
@@ -112,14 +122,18 @@ class NonAtomicSolver(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         proceed_from_last_plan = True
         if len(agents_for_assignments) > 0:
-            t1 = time.time()
+            # t1 = time.time()
             baseline_assignment_result = solver_copy.assign_tasks(agents_for_assignments, tasks_to_assign,
                                                                            self.prohibited_assignments)
-            t2 = time.time()
-            print(f'Tasks assignments took {t2-t1} [sec]')
+            # t2 = time.time()
+            # print(f'Tasks assignments took {t2-t1} [sec]')
             solver_copy.assign_non_task_endpoints_to_free_agents()
             agents_for_path_planning = solver_copy.determine_agents_for_path_planning()
+
+            # t1 = time.time()
             baseline_total_cost = solver_copy.agents_path_planning(agents_for_path_planning, self.long_lns_time_out)
+            # t2 = time.time()
+            # print(f'LNS took {t2 - t1} [sec]')
 
             if baseline_total_cost is not None:
                 #  Solution found, committing
@@ -142,54 +156,6 @@ class NonAtomicSolver(object):
             for agent in self.baseline_solver.agents:
                 if agent['state'] == AgentState.ENROUTE or agent['state'] == AgentState.BUSY:
                     baseline_total_cost -= 1
-            '''    
-            # There are available agents for assignment -> perform tasks assignment
-            baseline_assignment_result = self.baseline_solver.assign_tasks(agents_for_assignments, tasks_to_assign,
-                                                                           self.prohibited_assignments)
-            self.baseline_solver.assign_non_task_endpoints_to_free_agents()
-            # Invoking LNS for path planning
-            agents_for_path_planning = self.baseline_solver.determine_agents_for_path_planning()
-            #baseline_mapf_solution = self.baseline_solver.agents_path_planning(agents_for_path_planning)
-            # Computing solution cost (pickup costs + delivery costs)
-            #baseline_total_cost = self.baseline_solver.compute_mapf_plan_cost(baseline_mapf_solution)
-            baseline_total_cost = self.baseline_solver.agents_path_planning(agents_for_path_planning)
-            if baseline_total_cost is not None:
-                proceed_from_last_plan = False
-            else:
-                proceed_from_last_plan = True
-                print(Fore.RED + ' Warning! at baseline solution computation no solution found!' + Fore.RESET)
-
-        if proceed_from_last_plan:
-            baseline_total_cost = self.prev_baseline_total_cost
-            for agent in self.baseline_solver.agents:
-                if agent['state'] == AgentState.ENROUTE or agent['state'] == AgentState.BUSY:
-                    baseline_total_cost -= 1
-                    '''
-
-        '''
-        # There are available agents for assignment -> perform tasks assignment
-            baseline_assignment_result = self.baseline_solver.assign_tasks(agents_for_assignments, tasks_to_assign,
-                                                                           self.prohibited_assignments)
-            self.baseline_solver.assign_non_task_endpoints_to_free_agents()
-            # Invoking LNS for path planning
-            agents_for_path_planning = self.baseline_solver.determine_agents_for_path_planning()
-            #baseline_mapf_solution = self.baseline_solver.agents_path_planning(agents_for_path_planning)
-            # Computing solution cost (pickup costs + delivery costs)
-            #baseline_total_cost = self.baseline_solver.compute_mapf_plan_cost(baseline_mapf_solution)
-            baseline_total_cost = self.baseline_solver.agents_path_planning(agents_for_path_planning)
-            if baseline_total_cost is not None:
-                proceed_from_last_plan = False
-            else:
-                proceed_from_last_plan = True
-                print(Fore.RED + ' Warning! at baseline solution computation no solution found!' + Fore.RESET)
-
-        if proceed_from_last_plan:
-            baseline_total_cost = self.prev_baseline_total_cost
-            for agent in self.baseline_solver.agents:
-                if agent['state'] == AgentState.ENROUTE or agent['state'] == AgentState.BUSY:
-                    baseline_total_cost -= 1
-        '''
-
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Considering Task Splitting among BUSY agents
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -197,20 +163,9 @@ class NonAtomicSolver(object):
         for agent_record in self.baseline_solver.agents:
             print(agent_record['name'], ' is in state = ', agent_record['state'])
 
-        # Storing a copy of agents and tasks dictionaries for reverting changes
-        # agents_copy = deepcopy(self.baseline_solver.agents)
-        # agents_dict_copy = deepcopy(self.baseline_solver.agents_dict)
-        # tasks_copy = deepcopy(self.baseline_solver.tasks)
-        # tasks_to_agents_copy = deepcopy(self.baseline_solver.tasks_to_agents)
-        # agents_to_tasks_copy = deepcopy(self.baseline_solver.agents_to_tasks)
-        # free_non_task_endpoints_copy = deepcopy(self.baseline_solver.free_non_task_endpoints)
-        # agents_for_assignments_copy = deepcopy(agents_for_assignments)
-        # tasks_to_assign_copy = deepcopy(tasks_to_assign)
-        # new_prohibited_assignments = []  # List of lists([agent_name, task_name])
-
         # TODO - change configuration between ATOMIC and NON-ATOMIC
-        # agents_names_for_task_splitting = self.get_agents_names_for_task_splitting()
-        agents_names_for_task_splitting = []
+        agents_names_for_task_splitting = self.get_agents_names_for_task_splitting()
+        # agents_names_for_task_splitting = []
 
         better_solution_found = False
         commit_new_mapf_solution = False
@@ -229,7 +184,8 @@ class NonAtomicSolver(object):
             next_perm_to_report = 10
 
             # debug printing
-            print(f'Starting task splitting testing. Baseline cost = {baseline_total_cost}, {len(perm_table)} permutations...')
+            print(f'Starting task splitting testing. Baseline cost = {baseline_total_cost}, '
+                  f'N_agents = {len(agents_names_for_task_splitting)} , {len(perm_table)} permutations...')
 
             task_assign_cache = {}
 
@@ -241,10 +197,6 @@ class NonAtomicSolver(object):
 
                 # Retrieving the next permutation for testing
                 agents_names_to_test = perm_table[perm_iteraion]
-
-                # TODO REMOVE DEBUG
-                # if len(agents_names_to_test) > 3:
-                #     continue
 
                 # Storing a copy of agents and tasks dictionaries for reverting changes
                 agents_copy = deepcopy(self.baseline_solver.agents)
@@ -300,19 +252,19 @@ class NonAtomicSolver(object):
                     continue
 
                 # Computing task assignment
-                t1 = time.time()
+                # t1 = time.time()
                 tentative_assignment_result = solver.assign_tasks(agents_for_assignments_copy, tasks_to_assign_copy,
                                                                   self.prohibited_assignments + new_prohibited_assignments)
-                t2 = time.time()
+                # t2 = time.time()
                 # print(f'Task assignment took {t2-t1} [sec]')
 
                 # Invoking path planning using LNS
                 # tentative_total_cost = solver.compute_solution_total_cost(tentative_assignment_result)
 
                 tentative_agents_for_path_planning = solver.get_enroute_and_busy_agents_for_path_planning()
-                t1 = time.time()
+                # t1 = time.time()
                 tentative_mapf_solution_cost = solver.agents_path_planning(tentative_agents_for_path_planning, self.short_lns_time_out)
-                t2 = time.time()
+                # t2 = time.time()
                 # print(f'LNS took {t2-t1} [sec]')
                 if tentative_mapf_solution_cost is not None:
                     t1 = time.time()
@@ -411,39 +363,6 @@ class NonAtomicSolver(object):
             # Saving statistics about the splitting performance
             rational_improv = (baseline_total_cost - best_mapf_solution_cost) / baseline_total_cost * 100
             self.baseline_solver.splitting_stats[current_time] = [len(best_negative_assignments), rational_improv]
-
-            '''
-            # Computing the heuristic total cost of recommended task splitting
-            print('Test a heursitic better solution comprised of # drop-offs : ', len(new_prohibited_assignments))
-            new_assignment_result = solver.assign_tasks(agents_for_assignments_copy, tasks_to_assign_copy, tentative_prohibited_assignments)
-            new_total_cost = solver.compute_solution_total_cost(new_assignment_result)
-            print('New assignment solution total cost is ', new_total_cost,'. Baseline cost = ',baseline_total_cost)
-            if new_total_cost >= baseline_total_cost:
-                better_solution_found = False
-
-        # If the heuristic total cost improved, invoking a CBS to validate that a true cost improvement is evident
-        if better_solution_found:
-            # Computing the previous CBS path cost
-            prev_validated_cbs_cost = self.baseline_solver.compute_prev_cbs_plan_cost()
-
-            # Executing CBS to evaluate the true cost of the paths subject to task splitting
-            solver.assign_non_task_endpoints_to_free_agents()
-            tentative_agents_for_path_planning = solver.determine_agents_for_path_planning()
-            tentative_mapf_solution = solver.agents_path_planning(tentative_agents_for_path_planning)
-            if tentative_mapf_solution is not None:
-                # Computing validated plan cost
-                tentative_validated_cbs_cost = solver.compute_mapf_plan_cost(tentative_mapf_solution)
-                if tentative_validated_cbs_cost < prev_validated_cbs_cost:
-                    print('Tentative CBS - better solution found !')
-                    print('\tPrev cost = ', prev_validated_cbs_cost, ', New cost = ', tentative_validated_cbs_cost)
-                    commit_new_mapf_solution = True
-                    baseline_total_cost = tentative_validated_cbs_cost
-            else:
-                print('Tentative CBS - no solution found')
-                better_solution_found = False
-        '''
-
-
 
         if commit_new_mapf_solution is True:
             self.perform_commit(solver, tentative_prohibited_assignments)

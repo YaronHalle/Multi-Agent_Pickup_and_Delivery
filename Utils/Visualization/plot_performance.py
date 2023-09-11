@@ -2,6 +2,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import json
 import argparse
+import numpy as np
 from Simulations.classes import *
 def plot_tasks_per_states(data):
     time_ar = [int(str) for str in list(data.keys())]
@@ -96,12 +97,21 @@ def plot_non_atomic_performance(non_atomic_data):
     agents_involved_ar = [record['non_atomic_perf'][0] for record in non_atomic_data.values()]
     improvement_ar = [record['non_atomic_perf'][1] for record in non_atomic_data.values()]
 
+    soc_improvement = np.array([])
+    number_of_agents = np.array([])
+
     splitting_counter = 0
     for record in non_atomic_data.values():
         if record['non_atomic_perf'][0] > 0:
             splitting_counter += 1
+            number_of_agents = np.append(number_of_agents, record['non_atomic_perf'][0])
+            soc_improvement = np.append(soc_improvement, record['non_atomic_perf'][1])
 
-    portion_of_splittings = round(splitting_counter / len(time_ar) * 100)
+    portion_of_splittings = splitting_counter / len(time_ar) * 100
+
+    print(f"% iterations of task splitting = {portion_of_splittings}")
+    print(f"Avg. % SoC improvement = {soc_improvement.mean()}")
+    print(f"Avg. number of involved agents = {number_of_agents.mean()}")
 
     # fig_title = 'Steady state throughput = ' + '{:.2f}'.format(throughput_ar[-1]) + '\n' + \
     #             'Steady state service time = ' + '{:.2f}'.format(servicetime_ar[-1]) + '\n' + \
@@ -126,27 +136,30 @@ def plot_non_atomic_performance(non_atomic_data):
 
     plt.show()
 
+def get_average_non_atomic_results(non_atomic_data):
+    pass
+
 if __name__ == "__main__":
+    '''
     combined_stats_file = b"D:/GitHub/Multi-Agent_Pickup_and_Delivery/Utils/Visualization/combined_5_runs_stats_file.json"
     with open(combined_stats_file, "r") as read_file:
         combined_data = json.load(read_file)
     atomic_data = combined_data['atomic']
     non_atomic_data = combined_data['non_atomic']
-    compare_atomic_vs_non_atomics(atomic_data, non_atomic_data)
+    '''
 
-    atomic_file = b"D:/Results/07_04_2023_1000steps_small_warehouse_atomic/stats_file.json"
+    '''
+    atomic_file = b"D:/Results/1000steps_small_warehouse_50iterations_lns/1/atomic/stats_file.json"
     with open(atomic_file, "r") as read_file:
         atomic_data = json.load(read_file)
+         '''
 
-    # Remove all keys greater than 438
-    # for i in range(439, len(atomic_data)):
-    #     del atomic_data[str(i)]
-
-    non_atomic_file = b"D:/Results/07_04_2023_1000steps_small_warehouse_non_atomic/stats_file.json"
+    non_atomic_file = b"D:/Results/1000steps_small_warehouse_50iterations_lns/5/non_atomic/stats_file.json"
     with open(non_atomic_file, "r") as read_file:
         non_atomic_data = json.load(read_file)
 
-    compare_atomic_vs_non_atomics(atomic_data, non_atomic_data)
+
+    # compare_atomic_vs_non_atomics(atomic_data, non_atomic_data)
 
     plot_non_atomic_performance(non_atomic_data)
 

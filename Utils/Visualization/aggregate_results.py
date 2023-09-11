@@ -8,17 +8,17 @@ if __name__ == "__main__":
     atomic_data = []
     non_atomic_data = []
 
-    atomic_files = [b"D:/Results/31_03_2023_1000steps_small_warehouse_atomic/stats_file.json",
-                    b"D:/Results/01_04_2023_1000steps_small_warehouse_atomic/stats_file.json",
-                    b"D:/Results/05_04_2023_1000steps_small_warehouse_atomic/stats_file.json",
-                    b"D:/Results/06_04_2023_1000steps_small_warehouse_atomic/stats_file.json",
-                    b"D:/Results/07_04_2023_1000steps_small_warehouse_atomic/stats_file.json"]
+    atomic_files = [b"D:/Results/1000steps_small_warehouse_50iterations_lns/1/atomic/stats_file.json",
+                    b"D:/Results/1000steps_small_warehouse_50iterations_lns/2/atomic/stats_file.json",
+                    b"D:/Results/1000steps_small_warehouse_50iterations_lns/3/atomic/stats_file.json",
+                    b"D:/Results/1000steps_small_warehouse_50iterations_lns/4/atomic/stats_file.json",
+                    b"D:/Results/1000steps_small_warehouse_50iterations_lns/5/atomic/stats_file.json"]
 
-    non_atomic_files = [b"D:/Results/31_03_2023_1000steps_small_warehouse_non_atomic/stats_file.json",
-                    b"D:/Results/01_04_2023_1000steps_small_warehouse_non_atomic/stats_file.json",
-                    b"D:/Results/05_04_2023_1000steps_small_warehouse_non_atomic/stats_file.json",
-                    b"D:/Results/06_04_2023_1000steps_small_warehouse_non_atomic/stats_file.json",
-                    b"D:/Results/07_04_2023_1000steps_small_warehouse_non_atomic/stats_file.json"]
+    non_atomic_files = [b"D:/Results/1000steps_small_warehouse_50iterations_lns/1/non_atomic/stats_file.json",
+                        b"D:/Results/1000steps_small_warehouse_50iterations_lns/2/non_atomic/stats_file.json",
+                        b"D:/Results/1000steps_small_warehouse_50iterations_lns/3/non_atomic/stats_file.json",
+                        b"D:/Results/1000steps_small_warehouse_50iterations_lns/4/non_atomic/stats_file.json",
+                        b"D:/Results/1000steps_small_warehouse_50iterations_lns/5/non_atomic/stats_file.json"]
 
     # Loading data to memory
     for i in range(len(atomic_files)):
