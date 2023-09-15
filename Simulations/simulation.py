@@ -110,6 +110,7 @@ class Simulation(object):
                 new_task.task_name = t['task_name']
                 new_task.start_pos = t['start']
                 new_task.goal_pos = t['goal']
+                new_task.init_pos = new_task.start_pos
                 new_task.task_state = TaskState.PENDING
                 new_task.task_type = t['task_type']
                 new_task.start_time = t['start_time']
@@ -126,7 +127,8 @@ class Simulation(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Counting tasks according to task's states
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        tasks_counters = {TaskState.PENDING.value: 0, TaskState.ASSIGNED.value: 0, TaskState.EXECUTED.value: 0, TaskState.COMPLETED.value: 0}
+        tasks_counters = {TaskState.PENDING.value: 0, TaskState.ASSIGNED.value: 0, TaskState.PICKUP2DELIVERY.value: 0,
+                          TaskState.DELIVERY2PICKUP.value: 0, TaskState.COMPLETED.value: 0}
         for task in tasks.values():
             tasks_counters[task.task_state.value] += 1
 
@@ -206,7 +208,8 @@ class Simulation(object):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         print("Pending tasks counter = ", tasks_counters[TaskState.PENDING.value])
         print("Assigned tasks counter = ", tasks_counters[TaskState.ASSIGNED.value])
-        print("Executed tasks counter = ", tasks_counters[TaskState.EXECUTED.value])
+        print("Executed (Pickup 2 Delivery) tasks counter = ", tasks_counters[TaskState.PICKUP2DELIVERY.value])
+        print("Executed (Delivery 2 Pickup) tasks counter = ", tasks_counters[TaskState.DELIVERY2PICKUP.value])
         print("Completed tasks counter = ", tasks_counters[TaskState.COMPLETED.value])
         print("Current step throughput = ", throughput)
         print("Average throughput so far = ", avg_throughput)

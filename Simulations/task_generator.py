@@ -68,11 +68,13 @@ class TaskGenerator(object):
         n_tasks_so_far = len(current_tasks)
         self.taken_squares.clear()
         for task in current_tasks.values():
-            if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
-                self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
-                self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
-            if task.task_state == TaskState.EXECUTED:
-                self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+            self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
+            self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+            # if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
+            #     self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
+            #     self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+            # if task.task_state == TaskState.EXECUTED:
+            #     self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
         for agent in agents:
             current_pos = tuple([agent['current_pos'][0], agent['current_pos'][1]])
             self.taken_squares.add(current_pos)
@@ -96,6 +98,7 @@ class TaskGenerator(object):
             new_task = Task()
             new_task.task_name = 'task' + str(n_tasks_so_far + i)
             new_task.start_pos = next_start
+            new_task.init_pos = next_start
             new_task.goal_pos = next_goal
             new_task.task_state = TaskState.PENDING
             new_task.task_type = 0

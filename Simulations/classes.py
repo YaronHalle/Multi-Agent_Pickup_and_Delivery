@@ -9,8 +9,9 @@ class AgentState(Enum):
 class TaskState(Enum):
     PENDING = 0
     ASSIGNED = 1
-    EXECUTED = 2
-    COMPLETED = 3
+    PICKUP2DELIVERY = 2
+    DELIVERY2PICKUP = 3
+    COMPLETED = 4
 
 class Agent(object):
     def __init__(self):
@@ -27,4 +28,5 @@ class Task(object):
         self.start_time = None
         self.delay_time = None
         self.finish_time = None
+        self.init_pos = None # Task's original pickup location (to distinguish from start_pos that might change if pod is dropped)
 

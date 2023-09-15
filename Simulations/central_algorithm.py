@@ -397,16 +397,25 @@ class ClassicMAPDSolver(object):
                     del self.paths[agent_name]
 
                 # Updating status for agent's state transition BUSY -> FREE
+                task_state = self.tasks[agent['task_name']].task_state
                 if agent['state'] == AgentState.BUSY:
-                    agent['state'] = AgentState.FREE
-                    task_name = agent['task_name']
-                    completed_task_record = self.tasks[task_name]
-                    completed_task_record.task_state = TaskState.COMPLETED
-                    completed_task_record.finish_time = time
-                    del agent['goal']
-                    del agent['task_name']
-                    del self.agents_to_tasks[agent_name]
-                    del self.tasks_to_agents[task_name]
+                    if task_state == TaskState.DELIVERY2PICKUP:
+                        agent['state'] = AgentState.FREE
+                        task_name = agent['task_name']
+                        completed_task_record = self.tasks[task_name]
+                        completed_task_record.task_state = TaskState.COMPLETED
+                        completed_task_record.finish_time = time
+                        del agent['goal']
+                        del agent['task_name']
+                        del self.agents_to_tasks[agent_name]
+                        del self.tasks_to_agents[task_name]
+                    else: # task_state = TaskState.PICKUP2DELIVERY
+                        # Setting the task's pickup location as the agent's next goal
+                        task_goal = self.tasks[agent['task_name']].init_pos
+                        agent['goal'] = task_goal
+
+                        # Updating the assigned task status
+                        self.tasks[agent['task_name']].task_state = TaskState.DELIVERY2PICKUP
 
                 # Updating status for agent's state transition ENROUTE -> BUSY
                 if agent['state'] == AgentState.ENROUTE:
@@ -415,7 +424,7 @@ class ClassicMAPDSolver(object):
                     agent['goal'] = task_goal
 
                     # Updating the assigned task status
-                    self.tasks[agent['task_name']].task_state = TaskState.EXECUTED
+                    self.tasks[agent['task_name']].task_state = TaskState.PICKUP2DELIVERY
 
                     # Updating the agent's state to BUSY
                     agent['state'] = AgentState.BUSY
