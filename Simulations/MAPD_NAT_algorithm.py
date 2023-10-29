@@ -46,13 +46,10 @@ class NonAtomicSolver(object):
                 task = self.baseline_solver.tasks[task_name]
 
                 travelled_distance_from_pickup = \
-                    self.manhattan_distance(agent_record['current_pos'], task.start_pos)
+                    self.manhattan_distance(agent_record['current_pos'], task.pickup_pos)
                 if travelled_distance_from_pickup > 10:
                     busy_agents_names.append(agent_record['name'])
 
-                # TODO replacing the single step distance to manhattan distance computation
-                # if agent_record['current_pos'] != task.start_pos:
-                #     busy_agents_names.append(agent_record['name'])
         return busy_agents_names
 
     def permutations_recursion(self, agents_flags, index_to_start, max_agents, used_agents):
@@ -79,13 +76,14 @@ class NonAtomicSolver(object):
             perm_table.append(option)
         return perm_table
 
-    def get_current_goal_locations(self):
-        goal_locations = []
+    def get_current_prohibited_locations(self):
+        locations = []
         for task in self.baseline_solver.tasks.values():
             if task.task_state != TaskState.COMPLETED:
-                goal_locations.append(task.goal_pos)
+                locations.append(task.delivery_pos)
+                locations.append(task.pickup_pos)
 
-        return goal_locations
+        return locations
 
     def time_step(self, current_time):
         # Creating a copy of the solver class for not damaging the data integrity in case no solution is found
@@ -123,7 +121,7 @@ class NonAtomicSolver(object):
         proceed_from_last_plan = True
         if len(agents_for_assignments) > 0:
             # t1 = time.time()
-            baseline_assignment_result = solver_copy.assign_tasks(agents_for_assignments, tasks_to_assign,
+            solver_copy.assign_tasks(agents_for_assignments, tasks_to_assign,
                                                                            self.prohibited_assignments)
             # t2 = time.time()
             # print(f'Tasks assignments took {t2-t1} [sec]')
@@ -139,7 +137,7 @@ class NonAtomicSolver(object):
                 #  Solution found, committing
                 _agents_for_assignments = self.baseline_solver.determine_agents_for_assignments()
                 _tasks_to_assign = self.baseline_solver.collect_tasks_for_assignment()
-                _baseline_assignment_result = self.baseline_solver.assign_tasks(_agents_for_assignments, _tasks_to_assign,
+                self.baseline_solver.assign_tasks(_agents_for_assignments, _tasks_to_assign,
                                                                                self.prohibited_assignments)
                 self.baseline_solver.assign_non_task_endpoints_to_free_agents()
                 _agents_for_path_planning = self.baseline_solver.determine_agents_for_path_planning()
@@ -175,7 +173,7 @@ class NonAtomicSolver(object):
             # Build the permutations table
             t1 = time.time()
             perm_table = self.build_permutations_table(agents_names_for_task_splitting, len(agents_names_for_task_splitting))
-            goal_locations = self.get_current_goal_locations()
+            prohibited_locations = self.get_current_prohibited_locations()
             t2 = time.time()
             print(f'Building permutations table took {t2-t1} [sec]')
             best_perm_id = None
@@ -190,7 +188,7 @@ class NonAtomicSolver(object):
             task_assign_cache = {}
 
             for perm_iteraion in range(len(perm_table)):
-                # print('Perm_Iteration = ', perm_iteraion)
+                # print('Perm_Iteration = ', perm_iteration)
                 agents_for_assignments_copy = deepcopy(agents_for_assignments)
                 new_prohibited_assignments = []  # List of lists([agent_name, task_name])
                 tasks_to_assign_copy = deepcopy(tasks_to_assign)
@@ -213,7 +211,7 @@ class NonAtomicSolver(object):
 
                     # Testing that agent doesn't drop the shelf on a goal location of some other's tasks
                     agent_pos = agent_record['current_pos']
-                    if agent_pos in goal_locations:
+                    if agent_pos in prohibited_locations:
                         continue
 
                     # Setting the agent's task state back to PENDING (it was originally ASSIGNED)
@@ -228,7 +226,7 @@ class NonAtomicSolver(object):
                     del agent_record['goal']
 
                     # Updating task's starting position since its shelf is about to be dropped off at the agent's current position
-                    task_record.start_pos = agent_record['current_pos']
+                    task_record.current_pos = agent_record['current_pos']
 
                     # Marking this task as type=1 (task affected by non-atomicity approach)
                     task_record.task_type = 1
@@ -253,7 +251,7 @@ class NonAtomicSolver(object):
 
                 # Computing task assignment
                 # t1 = time.time()
-                tentative_assignment_result = solver.assign_tasks(agents_for_assignments_copy, tasks_to_assign_copy,
+                solver.assign_tasks(agents_for_assignments_copy, tasks_to_assign_copy,
                                                                   self.prohibited_assignments + new_prohibited_assignments)
                 # t2 = time.time()
                 # print(f'Task assignment took {t2-t1} [sec]')
@@ -330,7 +328,7 @@ class NonAtomicSolver(object):
                 agent_record['state'] = AgentState.FREE
 
                 # Updating task's starting position since its shelf is about to be dropped off at the agent's current position
-                task_record.start_pos = agent_record['current_pos']
+                task_record.current_pos = agent_record['current_pos']
 
                 # Marking this task as type=1 (task affected by non-atomicity approach)
                 task_record.task_type = 1

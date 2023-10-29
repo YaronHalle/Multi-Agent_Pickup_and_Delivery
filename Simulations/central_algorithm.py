@@ -10,6 +10,7 @@ from collections import defaultdict
 import time
 from Simulations.LNS_wrapper import *
 
+
 def is_agent_at_goal(agent_record):
     # In case agent hasn't been assigned with a goal due to MAPF failure, making sure the function
     # returns 'False' and doesn't crash
@@ -18,6 +19,7 @@ def is_agent_at_goal(agent_record):
             agent_record['current_pos'][1] == agent_record['goal'][1]
     else:
         return False
+
 
 class ClassicMAPDSolver(object):
     def __init__(self, agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=1e6):
@@ -49,11 +51,20 @@ class ClassicMAPDSolver(object):
         self.shelves_locations = set()
         self.task_assign_cache = {}
         self.splitting_stats = {}
+        self.occupancy_map = np.zeros(dimensions)
+        self.delivery_stations = {}
+
+        # Populating the obstacles in the occupancy map
+        for obstacle in obstacles:
+            self.occupancy_map[obstacle] = 1
 
         # Small Warehouse
         # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
+        # Small Warehouse for testing the new delivery stations mechanism
+        self.LNS = LNS_Wrapper_Class(
+            b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_delivery_stations_test.map")
         # Big Warehouse
-        self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
+        # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
 
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
@@ -70,6 +81,7 @@ class ClassicMAPDSolver(object):
             # agents conditions we don't want to damage (for example, making an EN-ROUTE agent FREE).
             if 'goal' not in agent_record.keys():
                 agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
+                self.occupancy_map[agent_pos] = 1
                 if agent_pos in self.non_task_endpoints:
                     # Agent rests at some non-task endpoint and should be referred as IDLE
                     agent_record['state'] = AgentState.IDLE
@@ -81,6 +93,7 @@ class ClassicMAPDSolver(object):
 
     def get_agents(self):
         return self.agents
+
     def get_tasks(self):
         return self.tasks
 
@@ -215,7 +228,7 @@ class ClassicMAPDSolver(object):
 
     def assign_non_task_endpoints_to_free_agents(self):
         # Identifying which agents are unassigned and need to seek an endpoint
-        #assigned_agents_names = [item[0] for item in assignments]
+        # assigned_agents_names = [item[0] for item in assignments]
         # agents_for_path_planning_copy = []
         # self.unassigned_agents = []
         # for agent_record in self.agents_for_path_planning:
@@ -230,14 +243,14 @@ class ClassicMAPDSolver(object):
         # all_agents_names = set([agent_record['name'] for agent_record in self.agents])
         # self.unassigned_agents = all_agents_names - agents_for_path_planning_names
         # if len(self.unassigned_agents) > 0:
-            # Do not consider endpoints assignments for an IDLE agent (meaning it is already located in some endpoint)
-            # temp_unassigned_agents = deepcopy(self.unassigned_agents)
-            # for agent_name in temp_unassigned_agents:
-            #     agent_record = self.agents_dict[agent_name]
-            #     if agent_record['state'] == AgentState.IDLE:
-            #         self.unassigned_agents.remove(agent_name)
-            #         agents_for_path_planning.remove(agent_record)
-            # del temp_unassigned_agents
+        # Do not consider endpoints assignments for an IDLE agent (meaning it is already located in some endpoint)
+        # temp_unassigned_agents = deepcopy(self.unassigned_agents)
+        # for agent_name in temp_unassigned_agents:
+        #     agent_record = self.agents_dict[agent_name]
+        #     if agent_record['state'] == AgentState.IDLE:
+        #         self.unassigned_agents.remove(agent_name)
+        #         agents_for_path_planning.remove(agent_record)
+        # del temp_unassigned_agents
 
         # Identifying the FREE agents that need to be assigned to endpoints
         unassigned_agents = []
@@ -367,6 +380,11 @@ class ClassicMAPDSolver(object):
         for agent in self.agents:
             agent_name = agent['name']
 
+            # Making sure that if agent is FREE or IDLE it has no task_name property left
+            if agent['state'] == AgentState.IDLE or agent['state'] == AgentState.FREE:
+                if 'task_name' in agent.keys():
+                    del agent['task_name']
+
             # Nothing to do if agent is IDLE
             if agent['state'] == AgentState.IDLE:
                 continue
@@ -377,8 +395,13 @@ class ClassicMAPDSolver(object):
             agent['current_path_index'] = agent['current_path_index'] + 1
             traj_index = agent['current_path_index']
             if traj_index < len(agent_trajectory):
+                # Updating the occupancy map
                 agent['current_pos'] = tuple([agent_trajectory[traj_index]['x'],
                                               agent_trajectory[traj_index]['y']])
+
+                if agent['state'] == AgentState.BUSY:
+                    task = self.tasks[self.agents_to_tasks[agent_name]]
+                    task.current_pos = deepcopy(agent['current_pos'])
             else:
                 print('Warning: trying to move agent to non existing trajectory element')
             # Updating 'start' property so future CBS searches will take into account
@@ -395,6 +418,7 @@ class ClassicMAPDSolver(object):
                     self.free_non_task_endpoints.remove(agent['goal'])
                     del agent['goal']
                     del self.paths[agent_name]
+                    continue
 
                 # Updating status for agent's state transition BUSY -> FREE
                 task_state = self.tasks[agent['task_name']].task_state
@@ -409,18 +433,11 @@ class ClassicMAPDSolver(object):
                         del agent['task_name']
                         del self.agents_to_tasks[agent_name]
                         del self.tasks_to_agents[task_name]
-                    else: # task_state = TaskState.PICKUP2DELIVERY
-                        # Setting the task's pickup location as the agent's next goal
-                        task_goal = self.tasks[agent['task_name']].init_pos
-                        agent['goal'] = task_goal
 
-                        # Updating the assigned task status
-                        self.tasks[agent['task_name']].task_state = TaskState.DELIVERY2PICKUP
-
-                # Updating status for agent's state transition ENROUTE -> BUSY
+                # Updating status for agent's state transition EN-ROUTE -> BUSY
                 if agent['state'] == AgentState.ENROUTE:
                     # Setting the task's delivery location as the agent's next goal
-                    task_goal = self.tasks[agent['task_name']].goal_pos
+                    task_goal = self.tasks[agent['task_name']].current_destination
                     agent['goal'] = task_goal
 
                     # Updating the assigned task status
@@ -432,16 +449,36 @@ class ClassicMAPDSolver(object):
     def update_shelves_locations(self):
         self.shelves_locations.clear()
         for task in self.tasks.values():
+            #if task.task_state != TaskState.COMPLETED:
             if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
-                shelf = tuple([task.start_pos[0], task.start_pos[1]])
+                shelf = tuple([task.current_pos[0], task.current_pos[1]])
                 self.shelves_locations.add(shelf)
 
     def collect_tasks_for_assignment(self):
         tasks_to_assign = []
+        available_spots = {}
+        for station in self.delivery_stations.values():
+            available_spots[station.delivery_pos] = station.available_spots_count()
+
         for task in self.tasks.values():
-            if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
+            if task.task_state == TaskState.ASSIGNED:
+                tasks_to_assign.append(task)
+            elif task.task_state == TaskState.PENDING:
+                delivery_pos = task.delivery_station.delivery_pos
+                if available_spots[delivery_pos] > 0:
+                    tasks_to_assign.append(task)
+                    available_spots[delivery_pos] -= 1
+
+        return tasks_to_assign
+
+        '''
+        tasks_to_assign = []
+        for task in self.tasks.values():
+            if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED \
+                    and task.delivery_station.is_available():
                 tasks_to_assign.append(task)
         return tasks_to_assign
+        '''
 
     def determine_agents_for_assignments(self):
         agents_for_assignment = []
@@ -469,33 +506,20 @@ class ClassicMAPDSolver(object):
                         agent_task_tuple = tuple([agent['name'], task.task_name])
                         if agent_task_tuple in self.task_assign_cache:
                             agent2task_cost[agent['name']][task.task_name] = self.task_assign_cache[agent_task_tuple]
-                        else:  # no cache to use, need to invoke A* and compute cost
-                            # TODO DEBUG
-                            # A* search was replaced by a simple manhattan distance for speed-up
+                        else:
+                            # Estimating distances using Manhattan heuristics
                             agent_pos = agent['current_pos']
-                            task_pos = task.start_pos
+
+                            task_pos = task.current_pos
                             distance = abs(agent_pos[0] - task_pos[0]) + abs(agent_pos[1] - task_pos[1])
                             agent2task_cost[agent['name']][task.task_name] = distance
                             # Storing to cache memory
                             self.task_assign_cache[agent_task_tuple] = distance
 
-                            '''
-                            agent['goal'] = task.start_pos
-                            env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
-                                              self.a_star_max_iter)
-                            path = env.a_star.search(agent['name'])
-                            if path is not False:
-                                agent2task_cost[agent['name']][task.task_name] = len(path)
-                                # Storing to cache memory
-                                self.task_assign_cache[agent_task_tuple] = len(path)
-                            else:
-                                agent2task_cost[agent['name']][task.task_name] = float('inf')
-                            del agent['goal']
-                            del env
-                            '''
-
                 if 'goal' in agent.keys():
                     del agent['goal']
+                if 'task_name' in agent.keys():
+                    del agent['task_name']
 
             # Populating cost_mat, rows are agents and columns are tasks
             cost_mat = []
@@ -516,26 +540,41 @@ class ClassicMAPDSolver(object):
             for task_i in range(len(task_id)):
                 # Retrieving assigned task name and setting its status to ASSIGNED (in case it previously was PENDING)
                 task_name = list(tasks_to_assign)[task_id[task_i]].task_name
+                task_record = self.tasks[task_name]
+                assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
+
+                # Subscribing the task to its corresponding delivery station on first time assignment of agent-task
+                if task_name not in self.tasks_to_agents:
+                    task_record = task_record.delivery_station.subscribe_task(task_record)
+
                 # Setting the new assigned task state to ASSIGNED
-                self.tasks[task_name].task_state = TaskState.ASSIGNED
+                task_record.task_state = TaskState.ASSIGNED
 
                 # Updating the assigned agent goal and status
-                assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
                 agent_record = self.agents_dict[assigned_agent_name]
-                agent_record['goal'] = self.tasks[task_name].start_pos
+                agent_record['goal'] = task_record.current_pos
 
                 # Checking if agent was previously IDLE and therefore its endpoint should be released
                 if agent_record['state'] == AgentState.IDLE:
                     agent_pos = tuple([agent_record['current_pos'][0], agent_record['current_pos'][1]])
                     self.free_non_task_endpoints.append(agent_pos)
                 agent_record['state'] = AgentState.ENROUTE
+
                 # Checking if the assigned agent was originally assigned to a different task. If so, the previous
                 # task becomes PENDING.
+                unsubscription_needed = False
                 if 'task_name' in agent_record.keys():
                     prev_task_name = agent_record['task_name']
-                    if task_name != prev_task_name and self.tasks_to_agents[prev_task_name] == assigned_agent_name:
+                    if task_name != prev_task_name and prev_task_name in self.tasks_to_agents and \
+                            self.tasks_to_agents[prev_task_name] == assigned_agent_name:
                         self.tasks[prev_task_name].task_state = TaskState.PENDING
                         del self.tasks_to_agents[prev_task_name]
+                        prev_task_record = self.tasks[prev_task_name]
+                        unsubscription_needed = True
+                        # The following line was commented since unsubscription can be only done after tasks_to_agents
+                        # member is populated (else the progress_queue method will fail)
+                        # prev_task_record = task_record.delivery_station.unsubscribe_task(prev_task_record)
+
                 agent_record['task_name'] = task_name
                 self.agents_to_tasks[assigned_agent_name] = task_name
 
@@ -546,8 +585,16 @@ class ClassicMAPDSolver(object):
                     prev_agent_record = self.agents_dict[prev_assigned_agent_name]
 
                     # If there's no goal property in prev_agent_record it means the previous agent is not assigned with any task
-                    if 'goal' not in prev_agent_record.keys():
-                        prev_agent_record['state'] = AgentState.FREE
+                    # if 'goal' not in prev_agent_record.keys():
+                    #     prev_agent_record['state'] = AgentState.FREE
+
+                    # If there's no goal property in prev_agent_record it means the previous agent is not assigned with any task
+                    prev_agent_record['state'] = AgentState.FREE
+                    if 'goal' in prev_agent_record.keys():
+                        del prev_agent_record['goal']
+                    if 'task_name' in prev_agent_record.keys():
+                        del prev_agent_record['task_name']
+
                     del self.agents_to_tasks[prev_assigned_agent_name]
                     del self.tasks_to_agents[task_name]
 
@@ -557,10 +604,11 @@ class ClassicMAPDSolver(object):
                     self.agents_to_tasks[assigned_agent_name] = task_name
                     self.tasks_to_agents[task_name] = assigned_agent_name
 
-                # Updating the tracking of unassigned agents for future endpoints assignment
-                # self.unassigned_agents.remove(assigned_agent_name)
+                if unsubscription_needed:
+                    prev_task_record = task_record.delivery_station.unsubscribe_task(prev_task_record)
 
-                agent_task_cost.append([assigned_agent_name, task_name, agent2task_cost[assigned_agent_name][task_name]])
+                agent_task_cost.append(
+                    [assigned_agent_name, task_name, agent2task_cost[assigned_agent_name][task_name]])
 
             return agent_task_cost
 
@@ -594,8 +642,8 @@ class ClassicMAPDSolver(object):
                 task_name = agent_record['task_name']
                 task = self.tasks[task_name]
                 tentative_agent = deepcopy(agent_record)
-                tentative_agent['current_pos'] = task.start_pos
-                tentative_agent['goal'] = task.goal_pos
+                tentative_agent['current_pos'] = task.current_pos
+                tentative_agent['goal'] = task.delivery_pos
 
                 env = Environment(self.dimensions, [tentative_agent], self.obstacles, None, self.shelves_locations,
                                   self.a_star_max_iter)
@@ -631,8 +679,8 @@ class ClassicMAPDSolver(object):
             agent = deepcopy(self.agents_dict[assignment[0]])
             task = self.tasks[assignment[1]]
 
-            agent['current_pos'] = task.start_pos
-            agent['goal'] = task.goal_pos
+            agent['current_pos'] = task.current_pos
+            agent['goal'] = task.delivery_pos
 
             env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
                               self.a_star_max_iter)
@@ -650,7 +698,7 @@ class ClassicMAPDSolver(object):
                 agent = deepcopy(agent_record)
                 task_name = agent['task_name']
                 task = self.tasks[task_name]
-                agent['goal'] = task.goal_pos
+                agent['goal'] = task.delivery_pos
 
                 env = Environment(self.dimensions, [agent], self.obstacles, None, self.shelves_locations,
                                   self.a_star_max_iter)
@@ -698,11 +746,11 @@ class ClassicMAPDSolver(object):
                 agent_copy['state'] = AgentState.BUSY
                 task_name = agent_copy['task_name']
                 task = self.tasks[task_name]
-                agent_copy['current_pos'] = task.start_pos
-                agent_copy['goal'] = task.goal_pos
+                agent_copy['current_pos'] = task.current_pos
+                agent_copy['goal'] = task.delivery_pos
 
                 # Removing the agent pickup shelf from the shelves list since they shelf is picked up
-                shelves_copy.remove(task.start_pos)
+                shelves_copy.remove(task.current_pos)
 
                 # Adding the modified ENROUTE agent to the list for path planning
                 enroute_agents.append(agent_copy)
@@ -729,21 +777,45 @@ class ClassicMAPDSolver(object):
 
         for agent_name in first_phase_mapf_solution:
             agent_record = self.agents_dict[agent_name]
+
+            # Ignoring free agents (who are heading towards some endpoint)
+            if agent_record['state'] == AgentState.FREE:
+                continue
+
+            task = self.tasks[self.agents_to_tasks[agent_name]]
+            task_waiting_and_service_time = task.delivery_station.get_waiting_and_service_time(task)
+
             # Summing the pickup paths' cost of EN-ROUTE agents
             if agent_record['state'] == AgentState.ENROUTE:
                 agent_path_index = agent_record['current_path_index']
-                agent_path_length = len(first_phase_mapf_solution[agent_name])
-                total_pickup_cost += (agent_path_length - agent_path_index) - 1
+                agent_path_length = len(first_phase_mapf_solution[agent_name]) - agent_path_index - 1
+                total_pickup_cost += agent_path_length
 
-                # Adding the delivery cost for enroute agents using the second phase LNS run
-                enroute_agent_path_from_pickup_to_delivery = second_phase_mapf_solution[agent_name]
-                total_delivery_cost += len(enroute_agent_path_from_pickup_to_delivery)
+                # Adding the delivery cost for enroute agents using the second phase LNS run. Length is multiplied
+                # by 2 since the agent must take the pod to the delivery position and bring it back to the pickup position
+                enroute_agent_path_from_pickup_to_delivery = len(second_phase_mapf_solution[agent_name])
+                total_delivery_cost += max(agent_path_length + enroute_agent_path_from_pickup_to_delivery,
+                                           task_waiting_and_service_time) + enroute_agent_path_from_pickup_to_delivery
 
             # Summing the delivery paths' cost of BUSY agents
             if agent_record['state'] == AgentState.BUSY:
+                # Need to distinguish between two types of BUSY agents 1. Pickup to Delivery: LNS has computed the
+                # trajectory from the agent's current position towards the delivery position. Need to add the
+                # distance of brining back the pod from the delivery to the pickup position. 2. Delivery to Pickup:
+                # LNS has computed the last trajectory segment of brining the pod from the delivery position back to
+                # the pickup location. Thus, no need to add anything.
                 agent_path_index = agent_record['current_path_index']
-                agent_path_length = len(first_phase_mapf_solution[agent_name])
-                total_delivery_cost += (agent_path_length - agent_path_index) - 1
+                agent_path_length = len(first_phase_mapf_solution[agent_name]) - agent_path_index - 1
+
+                if task.task_state == TaskState.PICKUP2DELIVERY:
+                    # LNS has computed the path from current location to delivery position. Using Manhattan distance
+                    # to estimate the path's length from the delivery to the pickup position
+                    path_length_delivery_to_pickup = abs(task.delivery_pos[0] - task.pickup_pos[0]) + \
+                                                     abs(task.delivery_pos[1] - task.pickup_pos[1])
+                    total_delivery_cost += max(agent_path_length, task_waiting_and_service_time) + \
+                                           path_length_delivery_to_pickup
+                elif task.task_state == TaskState.DELIVERY2PICKUP:
+                    total_delivery_cost += agent_path_length
 
         total_plan_cost = total_pickup_cost + total_delivery_cost
 
@@ -833,6 +905,8 @@ class ClassicMAPDSolver(object):
         # Determine which tasks should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         tasks_to_assign = self.collect_tasks_for_assignment()
+        # Resetting the task<->agent costs cache from previous time step
+        self.task_assign_cache = {}
         self.assign_tasks(agents_for_assignment, tasks_to_assign)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -855,7 +929,7 @@ class ClassicMAPDSolver(object):
             t1 = time.time()
             self.agents_path_planning(agents_for_path_planning)
             t2 = time.time()
-            print('\tMAPF completed in ', t2-t1, ' [sec]')
+            print('\tMAPF completed in ', t2 - t1, ' [sec]')
 
             # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
             # Debug Printing

@@ -187,8 +187,8 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, tasks,
 
     aspect = dimensions[0] / dimensions[1]
 
-    # fig = plt.figure(frameon=False, figsize=(10 * aspect, 10)) # for small warehouse
-    fig = plt.figure(frameon=False, figsize=(20 * aspect, 20))  # for big warehouse
+    fig = plt.figure(frameon=False, figsize=(10 * aspect, 10)) # for small warehouse
+    # fig = plt.figure(frameon=False, figsize=(20 * aspect, 20))  # for big warehouse
     ax = fig.add_subplot(111, aspect='equal')
     #fig.subplots_adjust(left=0, right=1, bottom=0, top=1, wspace=None, hspace=None)
 
@@ -251,9 +251,9 @@ def show_current_state(dimensions, obstacles, non_task_endpoints, agents, tasks,
     for task in tasks.values():
         task_color = Colors[task.task_type]
         if task.task_state is TaskState.PENDING or task.task_state is TaskState.ASSIGNED:
-                patches.append(Rectangle((task.start_pos[0] - 0.25, task.start_pos[1] - 0.25), 0.5, 0.5, facecolor=task_color, edgecolor='red',alpha=1))
+                patches.append(Rectangle((task.current_pos[0] - 0.25, task.current_pos[1] - 0.25), 0.5, 0.5, facecolor=task_color, edgecolor='red',alpha=1))
         if task.task_state is not TaskState.COMPLETED:
-            patches.append(Rectangle((task.goal_pos[0] - 0.25, task.goal_pos[1] - 0.25), 0.5, 0.5, facecolor=task_color, edgecolor='red', alpha=1))
+            patches.append(Rectangle((task.delivery_pos[0] - 0.25, task.delivery_pos[1] - 0.25), 0.5, 0.5, facecolor=task_color, edgecolor='red', alpha=1))
 
     for p in patches:
         ax.add_patch(p)

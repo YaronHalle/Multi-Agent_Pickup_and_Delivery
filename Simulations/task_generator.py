@@ -1,5 +1,5 @@
 import random
-from Simulations.central_algorithm import Task, TaskState
+from Simulations.central_algorithm import Task, TaskState, DeliveryStation
 import math
 from enum import Enum
 
@@ -8,7 +8,8 @@ class GenerationScheme(Enum):
     FROMFILE = 1
 
 class TaskGenerator(object):
-    def __init__(self, starts, goals, sampled_starts=None, sampled_goals=None):
+    def __init__(self, starts, goals, delivery_stations, sampled_starts=None, sampled_goals=None):
+        self.delivery_stations = delivery_stations
         self.next_start_sample_index = -1
         self.next_goal_sample_index = -1
         self.n_samples = 1000000
@@ -54,13 +55,14 @@ class TaskGenerator(object):
         else:
             self.next_goal_sample_index = 0
         next_goal = self.next_goals[self.next_goal_sample_index]
+        '''
         while next_goal in self.taken_squares:
             if self.next_goal_sample_index < len(self.next_goals) - 1:
                 self.next_goal_sample_index += 1
             else:
                 self.next_goal_sample_index = 0
             next_goal = self.next_goals[self.next_goal_sample_index]
-
+        '''
         return next_start, next_goal
 
     def generate_new_tasks(self, agents, current_tasks, n_tasks, current_time):
@@ -68,20 +70,43 @@ class TaskGenerator(object):
         n_tasks_so_far = len(current_tasks)
         self.taken_squares.clear()
         for task in current_tasks.values():
-            self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
-            self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+            if task.task_state != TaskState.COMPLETED:
+                self.taken_squares.add(tuple([task.pickup_pos[0], task.pickup_pos[1]]))
+                self.taken_squares.add(tuple([task.current_pos[0], task.current_pos[1]]))
+
+        '''
+        for task in current_tasks.values():
+            if task.task_state == TaskState.COMPLETED:
+                continue
+            elif task.task_state == TaskState.DELIVERY2PICKUP:
+                self.taken_squares.add(tuple([task.pickup_pos[0], task.pickup_pos[1]]))
+            else:
+                self.taken_squares.add(tuple([task.current_pos[0], task.current_pos[1]]))
+        '''
+
+
+                # self.taken_squares.add(tuple([task.delivery_pos[0], task.delivery_pos[1]))
             # if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
             #     self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
             #     self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
             # if task.task_state == TaskState.EXECUTED:
             #     self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
+
         for agent in agents:
             current_pos = tuple([agent['current_pos'][0], agent['current_pos'][1]])
             self.taken_squares.add(current_pos)
 
+        # Iterating through all delivery positions and removing deliveries whose queue is full
+        '''
+        for goal in self.goals:
+            if not self.delivery_stations[goal].is_available():
+                self.taken_squares.add(goal)
+        '''
+
         for i in range(n_tasks):
             free_starts = self.starts - self.taken_squares
-            free_goals = self.goals - self.taken_squares
+            #free_goals = self.goals - self.taken_squares
+            free_goals = self.goals
 
             if len(free_starts) == 0:
                 print('Warning: No more available task starting locations for generation!')
@@ -93,17 +118,18 @@ class TaskGenerator(object):
             next_start, next_goal = self.get_next_samples()
 
             self.taken_squares.add(next_start)
-            self.taken_squares.add(next_goal)
+            #self.taken_squares.add(next_goal)
 
             new_task = Task()
             new_task.task_name = 'task' + str(n_tasks_so_far + i)
-            new_task.start_pos = next_start
-            new_task.init_pos = next_start
-            new_task.goal_pos = next_goal
+            new_task.pickup_pos = next_start
+            new_task.current_pos = next_start
+            new_task.delivery_pos = next_goal
             new_task.task_state = TaskState.PENDING
             new_task.task_type = 0
             new_task.start_time = int(current_time)
             new_task.delay_time = 0
+            new_task.delivery_station = self.delivery_stations[new_task.delivery_pos]
             new_tasks.append(new_task)
 
         return new_tasks

@@ -13,7 +13,6 @@ class LNS_Wrapper_Class(object):
     def __init__(self, map_file_name):
         # Load the external C++ DLL of LNS
         self.cpp = LoadLibrary(r'D:\GitHub\MAPF-LNS2\Release\lns.dll')
-        #map_string_buffer = create_string_buffer(b"D:/GitHub/LNS_DLL_TESTER/random.map")
         self.map_string_buffer = create_string_buffer(map_file_name)
         self.default_time_limit = c_double(5)
         self.random_seed = 0
@@ -74,12 +73,6 @@ class LNS_Wrapper_Class(object):
                          pointer_to_agents_start_row, pointer_to_agents_target_col,
                          pointer_to_agents_target_row, pointer_to_busy_agents_ids,
                          n_busy_agents, pointer_to_shelves_col, pointer_to_shelves_row, n_shelves)
-
-        '''
-        void init_lns(const char* map_file_name, int number_of_agents, int agents_start_col[],
-		int agents_start_row[], int agents_target_col[], int agents_target_row[], 
-		int busy_agents_ids[], int n_busy_agents, int shelves_col[], int shelves_row[], int n_shelves);
-        '''
 
     def run(self, time_limit=None):
         AgentsPathsArray = AgentPath * self.number_of_agents

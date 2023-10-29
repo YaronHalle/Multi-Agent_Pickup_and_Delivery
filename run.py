@@ -58,16 +58,30 @@ if __name__ == '__main__':
     for agent in agents:
         agent['current_pos'] = tuple([agent['start'][0], agent['start'][1]])
 
+    # Instantiate a Solver object
+    solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    # solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+
+    # Creating the delivery stations objects according to the YAML data
+    delivery_stations = {}
+    for i in range(len(param['map']['goal_locations'])):
+        delivery_pos = tuple(param['map']['goal_locations'][i])
+        waiting_locations = param['map']['waiting_locations'][i]
+        new_delivery_station = DeliveryStation(solver, delivery_pos, waiting_locations)
+        delivery_stations[delivery_pos] = new_delivery_station
+
+    solver.delivery_stations = delivery_stations
+
     solver_freq = 1   # every cycle
     cycles_since_last_solver_run = solver_freq
 
-    with open(args.param + config['visual_postfix'], 'w') as param_file:
-        yaml.safe_dump(param, param_file)
+    # with open(args.param + config['visual_postfix'], 'w') as param_file:
+    #     yaml.safe_dump(param, param_file)
     # ----------------------------------------------------------------------
     # Save data to JSON file
     # ----------------------------------------------------------------------
     if False:
-        tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'])
+        tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'], delivery_stations)
         data = dict()
         data['agents'] = agents
         data['dimensions'] = dimensions
@@ -99,11 +113,8 @@ if __name__ == '__main__':
             for next_goal in data['sampled_goals_positions']:
                 sampled_goals_positions.append(tuple([next_goal[0], next_goal[1]]))
             tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'],
-                               sampled_starts_positions, sampled_goals_positions)
+                               delivery_stations, sampled_starts_positions, sampled_goals_positions)
 
-    # Instantiate a Solver object
-    # solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
-    solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
 
     # Instantiate a Simulation object
     simulation = Simulation(solver.get_tasks(), agents, solver)
@@ -113,13 +124,12 @@ if __name__ == '__main__':
     while not simulation.simulation_ended():
         print('---------------------- Time = ', simulation.time, ' ----------------------')
 
-
         # Plotting
-        # show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(),
-        #                    simulation.time)
+        show_current_state(dimensions, obstacles, non_task_endpoints, solver.get_agents(), solver.get_tasks(),
+                           simulation.time)
 
         # Gathering new tasks introduced in the current time step
-        new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 10, simulation.time)
+        new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 1, simulation.time)
 
         solver.add_tasks(new_tasks_buffer)
 
@@ -128,12 +138,15 @@ if __name__ == '__main__':
             solver.time_step(simulation.time)
             new_tasks.clear()
             cycles_since_last_solver_run = 0
-            # simulation.actual_paths = solver.paths
 
         cycles_since_last_solver_run = cycles_since_last_solver_run + 1
 
         # Moving agents according to their current plans (if plans exist)
         solver.move_agents(simulation.time)
+
+        # Making a single time step for every delivery station management
+        for station in delivery_stations.values():
+            station.time_step()
 
         # Keeping record of benchmark statistics
         simulation.compute_statistics()
@@ -142,7 +155,7 @@ if __name__ == '__main__':
         simulation.time = simulation.time + 1
 
     print('---------------------- End of Simulation  ----------------------')
-
+    '''
     cost = 0
     for path in simulation.actual_paths.values():
         cost = cost + len(path)
@@ -157,3 +170,4 @@ if __name__ == '__main__':
 
     create = [sys.executable, '-m', 'Utils.Visualization.visualize', '-slow_factor', str(args.slow_factor)]
     subprocess.call(create)
+    '''
