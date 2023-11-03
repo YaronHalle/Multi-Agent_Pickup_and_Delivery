@@ -17,7 +17,7 @@ from Utils.Visualization.visualize import *
 if __name__ == '__main__':
 
     # Loading command lines arguments
-    random.seed(601222111)
+    random.seed(43434)
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', help='Robustness parameter for k-TP', default=1, type=int)
     parser.add_argument('-p', help='Robustness parameter for p-TP', default=None, type=float)
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Save data to JSON file
     # ----------------------------------------------------------------------
-    if False:
+    if True:
         tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'], delivery_stations)
         data = dict()
         data['agents'] = agents
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Loading data from JSON file
     # ----------------------------------------------------------------------
-    if True:
+    if False:
         with open("data_file.json", "r") as read_file:
             data = json.load(read_file)
             agents = data['agents']
@@ -129,7 +129,7 @@ if __name__ == '__main__':
                            simulation.time)
 
         # Gathering new tasks introduced in the current time step
-        new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 1, simulation.time)
+        new_tasks_buffer = tg.generate_new_tasks(solver.get_agents(), solver.get_tasks(), 20, simulation.time)
 
         solver.add_tasks(new_tasks_buffer)
 
@@ -147,6 +147,14 @@ if __name__ == '__main__':
         # Making a single time step for every delivery station management
         for station in delivery_stations.values():
             station.time_step()
+
+            # Debug
+            tasks_count = 0
+            if station.current_processed_task is not None:
+                tasks_count += 1
+            tasks_count += len(station.tasks_queue)
+            print('No. tasks in station ', station.delivery_pos, ' is ', tasks_count)
+
 
         # Keeping record of benchmark statistics
         simulation.compute_statistics()

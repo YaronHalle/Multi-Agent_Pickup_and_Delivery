@@ -518,8 +518,8 @@ class ClassicMAPDSolver(object):
 
                 if 'goal' in agent.keys():
                     del agent['goal']
-                if 'task_name' in agent.keys():
-                    del agent['task_name']
+                # if 'task_name' in agent.keys():
+                #     del agent['task_name']
 
             # Populating cost_mat, rows are agents and columns are tasks
             cost_mat = []
@@ -594,9 +594,10 @@ class ClassicMAPDSolver(object):
                         del prev_agent_record['goal']
                     if 'task_name' in prev_agent_record.keys():
                         del prev_agent_record['task_name']
-
-                    del self.agents_to_tasks[prev_assigned_agent_name]
-                    del self.tasks_to_agents[task_name]
+                    if prev_assigned_agent_name in self.agents_to_tasks:
+                        del self.agents_to_tasks[prev_assigned_agent_name]
+                    if task_name in self.tasks_to_agents:
+                        del self.tasks_to_agents[task_name]
 
                 # Making sure task is filed in the task and agents mappings
                 if task_name not in self.tasks_to_agents:
@@ -605,7 +606,7 @@ class ClassicMAPDSolver(object):
                     self.tasks_to_agents[task_name] = assigned_agent_name
 
                 if unsubscription_needed:
-                    prev_task_record = task_record.delivery_station.unsubscribe_task(prev_task_record)
+                    prev_task_record = prev_task_record.delivery_station.unsubscribe_task(prev_task_record)
 
                 agent_task_cost.append(
                     [assigned_agent_name, task_name, agent2task_cost[assigned_agent_name][task_name]])
