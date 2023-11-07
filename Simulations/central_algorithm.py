@@ -22,7 +22,7 @@ def is_agent_at_goal(agent_record):
 
 
 class ClassicMAPDSolver(object):
-    def __init__(self, agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=1e6):
+    def __init__(self, agents, dimensions, obstacles, non_task_endpoints, a_star_max_iter=1e6, delivery_stations={}):
         # Assert that number of agents doesn't exceed number of possible non-task endpoints
         if len(agents) > len(non_task_endpoints):
             print('There are more agents than non task endpoints, instance is not well-formed.')
@@ -52,12 +52,12 @@ class ClassicMAPDSolver(object):
         self.task_assign_cache = {}
         self.splitting_stats = {}
         self.occupancy_map = np.zeros(dimensions)
-        self.delivery_stations = {}
+        self.delivery_stations = delivery_stations
 
         # Populating the obstacles in the occupancy map
         for obstacle in obstacles:
             self.occupancy_map[obstacle] = 1
-
+        '''
         # Small Warehouse
         # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
         # Small Warehouse for testing the new delivery stations mechanism
@@ -65,6 +65,7 @@ class ClassicMAPDSolver(object):
             b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_delivery_stations_test.map")
         # Big Warehouse
         # self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
+        '''
 
         for a in self.agents:
             self.path_ends.add(tuple(a['start']))
@@ -90,6 +91,9 @@ class ClassicMAPDSolver(object):
                 else:
                     # Agent is not populating any endpoint and thus is FREE
                     agent_record['state'] = AgentState.FREE
+
+    def update_delivery_stations(self, delivery_stations):
+        self.delivery_stations = delivery_stations
 
     def get_agents(self):
         return self.agents
@@ -713,18 +717,27 @@ class ClassicMAPDSolver(object):
 
         return total_pickup_cost + total_delivery_cost
 
+    def get_tasks_to_agents(self):
+        return self.tasks_to_agents
+
+    def get_agents_dict(self):
+        return self.agents_dict
+
+    def get_shelves_locations(self):
+        return self.shelves_locations
+
     def agents_path_planning(self, agents_for_path_planning, time_limit=None):
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # First, computing paths for all agents according to their goal properties
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # t1 = time.time()
         self.update_shelves_locations()
-        self.LNS.initialize(agents_for_path_planning, self.shelves_locations)
+        LNS_Wrapper.initialize(agents_for_path_planning, self.shelves_locations)
         # t2 = time.time()
         # print('\tLNS_INIT completed in ', t2-t1, ' [sec]')
 
         # t1 = time.time()
-        lns_ok, first_phase_mapf_solution = self.LNS.run(time_limit)
+        lns_ok, first_phase_mapf_solution = LNS_Wrapper.run(time_limit)
         # t2 = time.time()
         # print('\tLNS_RUN completed in ', t2 - t1, ' [sec]')
 
@@ -757,12 +770,12 @@ class ClassicMAPDSolver(object):
                 enroute_agents.append(agent_copy)
 
         # t1 = time.time()
-        self.LNS.initialize(enroute_agents, shelves_copy)
+        LNS_Wrapper.initialize(enroute_agents, shelves_copy)
         # t2 = time.time()
         # print('\tLNS_INIT completed in ', t2 - t1, ' [sec]')
 
         # t1 = time.time()
-        lns_ok, second_phase_mapf_solution = self.LNS.run(time_limit)
+        lns_ok, second_phase_mapf_solution = LNS_Wrapper.run(time_limit)
         # t2 = time.time()
         # print('\tLNS_RUN completed in ', t2 - t1, ' [sec]')
 
@@ -834,12 +847,12 @@ class ClassicMAPDSolver(object):
     def agents_path_planning_backup(self, agents_for_path_planning):
         # t1 = time.time()
         self.update_shelves_locations()
-        self.LNS.initialize(agents_for_path_planning, self.shelves_locations)
+        LNS_Wrapper.initialize(agents_for_path_planning, self.shelves_locations)
         # t2 = time.time()
         # print('\tLNS_INIT completed in ', t2-t1, ' [sec]')
 
         # t1 = time.time()
-        lns_ok, mapf_solution = self.LNS.run()
+        lns_ok, mapf_solution = LNS_Wrapper.run()
         # t2 = time.time()
         # print('\tLNS_RUN completed in ', t2 - t1, ' [sec]')
 
@@ -892,11 +905,6 @@ class ClassicMAPDSolver(object):
         return mapf_solution
 
     def time_step(self, current_time):
-        # agents_for_assignment = []
-        # agents_for_path_planning = []
-        # tasks_to_assign = []
-        # self.unassigned_agents.clear()
-
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which agents should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

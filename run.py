@@ -14,10 +14,19 @@ import subprocess
 import sys
 from Utils.Visualization.visualize import *
 
+# Creating a global scope object for the LNS path planner
+# Small Warehouse
+# self.LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_small_yaron.map")
+# Small Warehouse for testing the new delivery stations mechanism
+# LNS = LNS_Wrapper_Class(
+#     b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_delivery_stations_test.map")
+# Big Warehouse
+# LNS = LNS_Wrapper_Class(b"D:\GitHub\Multi-Agent_Pickup_and_Delivery\input_warehouse_big_random.map")
+
 if __name__ == '__main__':
 
     # Loading command lines arguments
-    random.seed(43434)
+    random.seed(11111)
     parser = argparse.ArgumentParser()
     parser.add_argument('-k', help='Robustness parameter for k-TP', default=1, type=int)
     parser.add_argument('-p', help='Robustness parameter for p-TP', default=None, type=float)
@@ -59,8 +68,8 @@ if __name__ == '__main__':
         agent['current_pos'] = tuple([agent['start'][0], agent['start'][1]])
 
     # Instantiate a Solver object
-    solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
-    # solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    # solver = ClassicMAPDSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
+    solver = NonAtomicSolver(agents, dimensions, obstacles, non_task_endpoints, args.a_star_max_iter)
 
     # Creating the delivery stations objects according to the YAML data
     delivery_stations = {}
@@ -70,7 +79,7 @@ if __name__ == '__main__':
         new_delivery_station = DeliveryStation(solver, delivery_pos, waiting_locations)
         delivery_stations[delivery_pos] = new_delivery_station
 
-    solver.delivery_stations = delivery_stations
+    solver.update_delivery_stations(delivery_stations)
 
     solver_freq = 1   # every cycle
     cycles_since_last_solver_run = solver_freq
@@ -80,7 +89,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Save data to JSON file
     # ----------------------------------------------------------------------
-    if True:
+    if False:
         tg = TaskGenerator(param['map']['start_locations'], param['map']['goal_locations'], delivery_stations)
         data = dict()
         data['agents'] = agents
@@ -95,7 +104,7 @@ if __name__ == '__main__':
     # ----------------------------------------------------------------------
     # Loading data from JSON file
     # ----------------------------------------------------------------------
-    if False:
+    if True:
         with open("data_file.json", "r") as read_file:
             data = json.load(read_file)
             agents = data['agents']

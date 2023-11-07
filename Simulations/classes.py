@@ -71,7 +71,7 @@ class DeliveryStation(object):
         # Delivery spot is considered occupied in the following two situations:
         # (1) The delivery spot is vacant, but it is reserved for some en-route agent who's about to arrive
         # (2) The delivery spot is not reserved for anybody, but a previous agent has dropped its shelf in the delivery spot
-        return (self.delivery_pos not in self.solver.shelves_locations) and self.current_processed_task is None
+        return (self.delivery_pos not in self.solver.get_shelves_locations()) and self.current_processed_task is None
 
     def is_available(self):
         """
@@ -94,7 +94,7 @@ class DeliveryStation(object):
 
         if self.next_waiting_index is not None:
             for index in range(self.next_waiting_index, self.queue_size):
-                if tuple(self.waiting_locations[index]) not in self.solver.shelves_locations:
+                if tuple(self.waiting_locations[index]) not in self.solver.get_shelves_locations():
                     count += 1
 
         return count
@@ -108,7 +108,7 @@ class DeliveryStation(object):
         if self.current_processed_task == task:
             # Unsubscribing the head task which is currently assigned to the delivery station
             self.current_processed_task = None
-            #self.current_waiting_and_service_time -= self.time_to_finish_current_task
+            self.time_to_finish_current_task = 0
             self.progress_queue(-1)
         else:
             task_found = False
@@ -128,13 +128,6 @@ class DeliveryStation(object):
             if not task_found:
                 print('Warning! Exception in DeliveryStation class: unsubscribe_task() was called with an unrecognized task')
                 # exit(1)
-        '''
-        if self.delivery_pos == (18, 1):
-            if (self.next_waiting_index == None and len(self.tasks_queue) != self.queue_size) or\
-                (self.next_waiting_index is not None and self.next_waiting_index != len(self.tasks_queue)):
-                print('problem')
-                exit(1)
-        '''
 
         return task
 
@@ -174,13 +167,7 @@ class DeliveryStation(object):
             if self.next_waiting_index == self.queue_size:
                 # The queue is full
                 self.next_waiting_index = None
-        '''
-        if self.delivery_pos == (18, 1):
-            if (self.next_waiting_index == None and len(self.tasks_queue) != self.queue_size) or \
-                    (self.next_waiting_index is not None and self.next_waiting_index != len(self.tasks_queue)):
-                print('problem')
-                exit(1)
-        '''
+
         return task
 
     def progress_queue(self, index):
@@ -203,8 +190,8 @@ class DeliveryStation(object):
             # Signal the first task waiting in queue to advance towards the delivery post
             next_task = self.tasks_queue.pop(0)
             self.current_processed_task = next_task
-            agent_name = self.solver.tasks_to_agents[next_task.task_name]
-            agent_record = self.solver.agents_dict[agent_name]
+            agent_name = self.solver.get_tasks_to_agents()[next_task.task_name]
+            agent_record = self.solver.get_agents_dict()[agent_name]
             # agent_record['goal'][0] = self.delivery_pos[0]
             # agent_record['goal'][1] = self.delivery_pos[1]
             agent_record['goal'] = deepcopy(self.delivery_pos)
@@ -223,25 +210,17 @@ class DeliveryStation(object):
         # Advance any waiting tasks in the queue (if there are any)
         for i in range(queue_progress_start_ind, len(self.tasks_queue)):
             next_task = self.tasks_queue[i]
-            agent_name = self.solver.tasks_to_agents[next_task.task_name]
-            agent_record = self.solver.agents_dict[agent_name]
+            agent_name = self.solver.get_tasks_to_agents()[next_task.task_name]
+            agent_record = self.solver.get_agents_dict()[agent_name]
             waiting_location = deepcopy(self.waiting_locations[i])
             # Asserting that the waiting location is actually free
-            if tuple(waiting_location) not in self.solver.shelves_locations:
+            if tuple(waiting_location) not in self.solver.get_shelves_locations():
                 agent_record['goal'] = waiting_location
                 next_task.current_destination = waiting_location
                 some_agent_moved = True
             else:
                 break  # The queue is stuck, no need to advance the next agents waiting in line
 
-            '''
-            # If last waiting task has advanced, need to update the index of the next available waiting spot
-            if i == len(self.tasks_queue) - 1:
-                if self.next_waiting_index is None:
-                    self.next_waiting_index = len(self.waiting_locations) - 1
-                else:
-                    self.next_waiting_index -= 1
-            '''
         # If last waiting task has advanced, need to update the index of the next available waiting spot
         if len(self.tasks_queue) < self.queue_size and some_agent_moved:
             if self.next_waiting_index is None:
@@ -270,8 +249,8 @@ class DeliveryStation(object):
         # Checking if there's a currently processed task in the delivery spot
         if self.current_processed_task is not None:
             # A processed task is in process
-            agent_name = self.solver.tasks_to_agents[self.current_processed_task.task_name]
-            agent_record = self.solver.agents_dict[agent_name]
+            agent_name = self.solver.get_tasks_to_agents()[self.current_processed_task.task_name]
+            agent_record = self.solver.get_agents_dict()[agent_name]
 
             # Asserting that agent has actually arrived at the delivery position
             if agent_record['current_pos'] == self.delivery_pos:
@@ -280,53 +259,14 @@ class DeliveryStation(object):
 
                 # Check if the  current task has finished its processing
                 if self.time_to_finish_current_task == 0:
-                    self.solver.tasks[self.current_processed_task.task_name].task_state = TaskState.DELIVERY2PICKUP
-                    agent_record['goal'] = self.solver.tasks[self.current_processed_task.task_name].pickup_pos
+                    self.solver.get_tasks()[self.current_processed_task.task_name].task_state = TaskState.DELIVERY2PICKUP
+                    agent_record['goal'] = self.solver.get_tasks()[self.current_processed_task.task_name].pickup_pos
                     self.current_processed_task = None
 
                     if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
                         self.progress_queue(-1)
 
-                    '''        
-                    # Signal the first task waiting in queue to advance towards the delivery post
-                    next_task = self.tasks_queue.pop()
-                    agent_name = self.solver.tasks_to_agents(next_task.task_name)
-                    agent_record = self.solver.agents_dict[agent_name]
-                    agent_record['goal'][0] = self.delivery_pos[0]
-                    agent_record['goal'][1] = self.delivery_pos[1]
-
-                    # Advance any waiting tasks in the queue (if there are any)
-                    for i in range(len(self.tasks_queue)):
-                        next_task = self.tasks_queue[i]
-                        agent_name = self.solver.tasks_to_agents(next_task.task_name)
-                        agent_record = self.solver.agents_dict[agent_name]
-                        waiting_location = self.waiting_locations[i - 1]
-                        # Asserting that the waiting location is actually free
-                        if waiting_location not in self.solver.shelves_locations:
-                            agent_record['goal'][0] = self.waiting_locations[i - 1][0]
-                            agent_record['goal'][1] = self.waiting_locations[i - 1][1]
-                        else:
-                            break  # The queue is stuck, no need to advance the next agents waiting in line
-                    '''
-
         else:
             # Check if there are waiting tasks to be progressed
             if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
                 self.progress_queue(0)
-
-                '''
-                # Signal the first task waiting in queue to advance towards the delivery post
-                next_task = self.tasks_queue.pop()
-                agent_name = self.solver.tasks_to_agents(next_task.task_name)
-                agent_record = self.solver.agents_dict[agent_name]
-                agent_record['goal'][0] = self.delivery_pos[0]
-                agent_record['goal'][1] = self.delivery_pos[1]
-
-                # Advance any waiting tasks in the queue (if there are any)
-                for i in range(len(self.tasks_queue)):
-                    next_task = self.tasks_queue[i]
-                    agent_name = self.solver.tasks_to_agents(next_task.task_name)
-                    agent_record = self.solver.agents_dict[agent_name]
-                    agent_record['goal'][0] = self.waiting_locations[i - 1][0]
-                    agent_record['goal'][1] = self.waiting_locations[i - 1][1]
-                '''

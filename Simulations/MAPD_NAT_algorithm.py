@@ -23,11 +23,24 @@ class NonAtomicSolver(object):
         self.short_lns_time_out = 1 # [sec]
         self.long_lns_time_out = 10 # [sec]
 
+    def get_shelves_locations(self):
+        return self.baseline_solver.shelves_locations
+
+    def get_agents_dict(self):
+        return self.baseline_solver.get_agents_dict()
+
+    def get_tasks_to_agents(self):
+        return self.baseline_solver.get_tasks_to_agents()
+
+    def update_delivery_stations(self, delivery_stations):
+        self.baseline_solver.delivery_stations = delivery_stations
+
     def get_agents(self):
         return self.baseline_solver.get_agents()
 
     def get_tasks(self):
         return self.baseline_solver.get_tasks()
+
     def add_tasks(self, new_tasks):
         self.baseline_solver.add_tasks(new_tasks)
 
@@ -47,7 +60,7 @@ class NonAtomicSolver(object):
 
                 travelled_distance_from_pickup = \
                     self.manhattan_distance(agent_record['current_pos'], task.pickup_pos)
-                if travelled_distance_from_pickup > 10:
+                if travelled_distance_from_pickup > 2:
                     busy_agents_names.append(agent_record['name'])
 
         return busy_agents_names
@@ -89,30 +102,37 @@ class NonAtomicSolver(object):
         # Creating a copy of the solver class for not damaging the data integrity in case no solution is found
         agents_copy = deepcopy(self.baseline_solver.agents)
         tasks_copy = deepcopy(self.baseline_solver.tasks)
+        stations_copy = deepcopy(self.baseline_solver.delivery_stations)
+
+        # yaron
+        for task in tasks_copy.values():
+            task.delivery_station = stations_copy[task.delivery_pos]
 
         # Creating a new solver instance for not damaging the data consistency of the real solver
         solver_copy = ClassicMAPDSolver(agents_copy, self.baseline_solver.dimensions, self.baseline_solver.obstacles,
-                                   self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter)
+                                   self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter,
+                                        stations_copy)
+        # yaron
+        for station in stations_copy.values():
+            station.solver = solver_copy
 
         solver_copy.add_tasks(tasks_copy.values())
         solver_copy.tasks_to_agents = deepcopy(self.baseline_solver.tasks_to_agents)
         solver_copy.agents_to_tasks = deepcopy(self.baseline_solver.agents_to_tasks)
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # Reseting the task->agents costs mapping cache
+        # Resetting the task->agents costs mapping cache
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         self.baseline_solver.task_assign_cache = {}
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which agents should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # agents_for_assignments = self.baseline_solver.determine_agents_for_assignments()
         agents_for_assignments = solver_copy.determine_agents_for_assignments()
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # Determine which tasks should be considered for assignment
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        # tasks_to_assign = self.baseline_solver.collect_tasks_for_assignment()
         tasks_to_assign = solver_copy.collect_tasks_for_assignment()
 
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -199,10 +219,20 @@ class NonAtomicSolver(object):
                 # Storing a copy of agents and tasks dictionaries for reverting changes
                 agents_copy = deepcopy(self.baseline_solver.agents)
                 tasks_copy = deepcopy(self.baseline_solver.tasks)
+                stations_copy = deepcopy(self.baseline_solver.delivery_stations)
+
+                # yaron
+                for task in tasks_copy.values():
+                    task.delivery_station = stations_copy[task.delivery_pos]
 
                 # Creating a new solver instance for not damaging the data consistency of the real solver
                 solver = ClassicMAPDSolver(agents_copy, self.baseline_solver.dimensions, self.baseline_solver.obstacles,
-                                           self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter)
+                                           self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter,
+                                           stations_copy)
+
+                # yaron
+                for station in stations_copy.values():
+                    station.solver = solver_copy
 
                 solver.task_assign_cache = task_assign_cache
 
@@ -219,6 +249,7 @@ class NonAtomicSolver(object):
                     #task_record = deepcopy(self.baseline_solver.tasks[task_name])
                     task_record = tasks_copy[task_name]
                     task_record.task_state = TaskState.PENDING
+                    task_record = task_record.delivery_station.unsubscribe_task(task_record)
 
                     # Setting the agent's state to FREE
                     agent_record['state'] = AgentState.FREE
@@ -300,13 +331,15 @@ class NonAtomicSolver(object):
             # Storing a copy of agents and tasks dictionaries for reverting changes
             agents_copy = deepcopy(self.baseline_solver.agents)
             tasks_copy = deepcopy(self.baseline_solver.tasks)
+            stations_copy = deepcopy(self.baseline_solver.delivery_stations)
             tasks_to_assign_copy = deepcopy(tasks_to_assign)
             agents_for_assignments_copy = deepcopy(agents_for_assignments)
             tentative_prohibited_assignments = deepcopy(self.prohibited_assignments)
 
             # Creating a new solver instance for not damaging the data consistency of the real solver
             solver = ClassicMAPDSolver(agents_copy, self.baseline_solver.dimensions, self.baseline_solver.obstacles,
-                                       self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter)
+                                       self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter,
+                                       stations_copy)
             solver.add_tasks(tasks_copy.values())
             solver.tasks_to_agents = deepcopy(self.baseline_solver.tasks_to_agents)
             solver.agents_to_tasks = deepcopy(self.baseline_solver.agents_to_tasks)
@@ -319,6 +352,7 @@ class NonAtomicSolver(object):
                 # Setting the agent's task state back to PENDING (it was originally ASSIGNED)
                 task_record = solver.tasks[task_name]
                 task_record.task_state = TaskState.PENDING
+                task_record = task_record.delivery_station.unsubscribe_task(task_record)
 
                 # Since task's shelf position was updated, need to remove all agents->tasks costs that were
                 # involved with this task (since they are no longer valid)
