@@ -1,5 +1,5 @@
 import random
-from Simulations.central_algorithm import Task, TaskState, DeliveryStation
+from Simulations.central_algorithm import *
 import math
 from enum import Enum
 
@@ -126,6 +126,7 @@ class TaskGenerator(object):
             new_task.current_pos = next_start
             new_task.delivery_pos = next_goal
             new_task.task_state = TaskState.PENDING
+            new_task.task_phase = TaskPhase.PICKUP2DELIVERY
             new_task.task_type = 0
             new_task.start_time = int(current_time)
             new_task.delay_time = 0

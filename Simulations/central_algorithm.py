@@ -494,6 +494,8 @@ class ClassicMAPDSolver(object):
         return agents_for_assignment
 
     def assign_tasks(self, agents_for_assignments, tasks_to_assign, prohibited_assignments=[]):
+        # t1 = time.time()
+        agent_task_cost = []
         if len(tasks_to_assign) > 0:
             # Computing cost of agents to tasks start location assuming no agent-agent collisions
             agent2task_cost = {}
@@ -537,9 +539,6 @@ class ClassicMAPDSolver(object):
             # Computing optimal assignment using the Hungarian algorithm
             agent_id, task_id = scipy.optimize.linear_sum_assignment(cost_ar)
 
-            # Storing the optimal assignment data
-            agent_task_cost = []
-
             # Updating the assigned and unassigned agents lists
             for task_i in range(len(task_id)):
                 # Retrieving assigned task name and setting its status to ASSIGNED (in case it previously was PENDING)
@@ -549,7 +548,9 @@ class ClassicMAPDSolver(object):
 
                 # Subscribing the task to its corresponding delivery station on first time assignment of agent-task
                 if task_name not in self.tasks_to_agents:
-                    task_record = task_record.delivery_station.subscribe_task(task_record)
+                    # yaron
+                    # task_record = task_record.delivery_station.subscribe_task(task_record)
+                    task_record.delivery_station.subscribe_task(task_name)
 
                 # Setting the new assigned task state to ASSIGNED
                 task_record.task_state = TaskState.ASSIGNED
@@ -610,12 +611,17 @@ class ClassicMAPDSolver(object):
                     self.tasks_to_agents[task_name] = assigned_agent_name
 
                 if unsubscription_needed:
-                    prev_task_record = prev_task_record.delivery_station.unsubscribe_task(prev_task_record)
+                    # yaron
+                    # prev_task_record = prev_task_record.delivery_station.unsubscribe_task(prev_task_record)
+                    prev_task_record.delivery_station.unsubscribe_task(prev_task_record.task_name)
 
                 agent_task_cost.append(
                     [assigned_agent_name, task_name, agent2task_cost[assigned_agent_name][task_name]])
 
-            return agent_task_cost
+        # t2 = time.time()
+        # print(f'Tasks assignments took {t2 - t1} [sec]')
+
+        return agent_task_cost
 
     def compute_prev_cbs_plan_cost(self):
         prev_cost = self.compute_mapf_plan_cost(self.paths)
@@ -727,6 +733,7 @@ class ClassicMAPDSolver(object):
         return self.shelves_locations
 
     def agents_path_planning(self, agents_for_path_planning, time_limit=None):
+        t1 = time.time()
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # First, computing paths for all agents according to their goal properties
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -841,6 +848,9 @@ class ClassicMAPDSolver(object):
         # Resetting each affected agent's path index
         for agent in agents_for_path_planning:
             agent['current_path_index'] = 0
+
+        t2 = time.time()
+        print('\tLNS completed in ', t2-t1, ' [sec]')
 
         return total_plan_cost
 

@@ -20,7 +20,7 @@ class NonAtomicSolver(object):
         self.prohibited_assignments = []
         self.splitting_stats = self.baseline_solver.splitting_stats
         self.agents_perm_table = set()
-        self.short_lns_time_out = 1 # [sec]
+        self.short_lns_time_out = 0.5 # [sec]
         self.long_lns_time_out = 10 # [sec]
 
     def get_shelves_locations(self):
@@ -178,8 +178,8 @@ class NonAtomicSolver(object):
         # Considering Task Splitting among BUSY agents
         # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         # debug
-        for agent_record in self.baseline_solver.agents:
-            print(agent_record['name'], ' is in state = ', agent_record['state'])
+        # for agent_record in self.baseline_solver.agents:
+        #     print(agent_record['name'], ' is in state = ', agent_record['state'])
 
         # TODO - change configuration between ATOMIC and NON-ATOMIC
         agents_names_for_task_splitting = self.get_agents_names_for_task_splitting()
@@ -189,10 +189,12 @@ class NonAtomicSolver(object):
         commit_new_mapf_solution = False
         best_solution_cost_so_far = baseline_total_cost
 
-        if len(agents_names_for_task_splitting) > 0:
+        if len(agents_names_for_task_splitting) > 0 and current_time%10 == 0: # debug
+        # if len(agents_names_for_task_splitting) > 0:
             # Build the permutations table
             t1 = time.time()
-            perm_table = self.build_permutations_table(agents_names_for_task_splitting, len(agents_names_for_task_splitting))
+            # perm_table = self.build_permutations_table(agents_names_for_task_splitting, len(agents_names_for_task_splitting))
+            perm_table = self.build_permutations_table(agents_names_for_task_splitting, 2)
             prohibited_locations = self.get_current_prohibited_locations()
             t2 = time.time()
             print(f'Building permutations table took {t2-t1} [sec]')
@@ -207,7 +209,10 @@ class NonAtomicSolver(object):
 
             task_assign_cache = {}
 
+            # agents_names_to_test = [] # debug
+
             for perm_iteraion in range(len(perm_table)):
+            # for perm_iteration in range(1): # debug
                 # print('Perm_Iteration = ', perm_iteration)
                 agents_for_assignments_copy = deepcopy(agents_for_assignments)
                 new_prohibited_assignments = []  # List of lists([agent_name, task_name])
@@ -234,6 +239,10 @@ class NonAtomicSolver(object):
                 for station in stations_copy.values():
                     station.solver = solver_copy
 
+                solver.add_tasks(tasks_copy.values())
+                solver.tasks_to_agents = deepcopy(self.baseline_solver.tasks_to_agents)
+                solver.agents_to_tasks = deepcopy(self.baseline_solver.agents_to_tasks)
+
                 solver.task_assign_cache = task_assign_cache
 
                 for agent_name in agents_names_to_test:
@@ -249,7 +258,9 @@ class NonAtomicSolver(object):
                     #task_record = deepcopy(self.baseline_solver.tasks[task_name])
                     task_record = tasks_copy[task_name]
                     task_record.task_state = TaskState.PENDING
-                    task_record = task_record.delivery_station.unsubscribe_task(task_record)
+                    # yaron
+                    # task_record = task_record.delivery_station.unsubscribe_task(task_record)
+                    task_record.delivery_station.unsubscribe_task(task_name)
 
                     # Setting the agent's state to FREE
                     agent_record['state'] = AgentState.FREE
@@ -264,9 +275,6 @@ class NonAtomicSolver(object):
 
                     # Adding this task back to tasks_to_assign list. Adding the agent to agents_for_assignment list
                     tasks_to_assign_copy.append(task_record)
-                    solver.add_tasks(tasks_copy.values())
-                    solver.tasks_to_agents = deepcopy(self.baseline_solver.tasks_to_agents)
-                    solver.agents_to_tasks = deepcopy(self.baseline_solver.agents_to_tasks)
                     agents_for_assignments_copy.append(agent_record)
 
                     # Updating agents_to_tasks and tasks_to_agents mappings
@@ -284,15 +292,40 @@ class NonAtomicSolver(object):
                 # t1 = time.time()
                 solver.assign_tasks(agents_for_assignments_copy, tasks_to_assign_copy,
                                                                   self.prohibited_assignments + new_prohibited_assignments)
+
+                # debug
+                '''
+                print('Tasks to assign:')
+                for task in tasks_to_assign_copy:
+                    print(task.task_name)
+                print('Agents for assignment:')
+                for agent in agents_for_assignments_copy:
+                    print(agent['name'])
+                '''
                 # t2 = time.time()
                 # print(f'Task assignment took {t2-t1} [sec]')
 
-                # Invoking path planning using LNS
-                # tentative_total_cost = solver.compute_solution_total_cost(tentative_assignment_result)
+                solver.assign_non_task_endpoints_to_free_agents()
+                agents_for_path_planning = solver.determine_agents_for_path_planning()
+                # debug
+                '''
+                for agent in solver.agents:
+                    if agent['state'] == AgentState.IDLE:
+                        print(agent['name'],' is IDLE')
+                    elif agent['state'] == AgentState.FREE:
+                        print(agent['name'],' is FREE going to ', agent['goal'])
+                    else:
+                        print(agent['name'], 'is ', agent['state'],' assigned to ',agent['task_name'])
+                print('Shelves:')
+                for shelf in solver.shelves_locations:
+                    print(shelf)
+                '''
 
-                tentative_agents_for_path_planning = solver.get_enroute_and_busy_agents_for_path_planning()
+                # tentative_agents_for_path_planning = solver.get_enroute_and_busy_agents_for_path_planning() # debug
                 # t1 = time.time()
-                tentative_mapf_solution_cost = solver.agents_path_planning(tentative_agents_for_path_planning, self.short_lns_time_out)
+                # tentative_mapf_solution_cost = solver.agents_path_planning(tentative_agents_for_path_planning, self.short_lns_time_out)
+                tentative_mapf_solution_cost = solver.agents_path_planning(agents_for_path_planning,
+                                                                           self.short_lns_time_out)
                 # t2 = time.time()
                 # print(f'LNS took {t2-t1} [sec]')
                 if tentative_mapf_solution_cost is not None:
@@ -302,7 +335,7 @@ class NonAtomicSolver(object):
                     t2 = time.time()
                     # print(f'Plan cost computation took {t2-t1} [sec]')
                     rational_improv = (baseline_total_cost - perm_cost) / baseline_total_cost*100
-                    if perm_cost < best_perm_cost and rational_improv > 10:
+                    if perm_cost < best_perm_cost and rational_improv >= 1:
                         print(Fore.GREEN + '\tTime=', current_time,' : Best cost so far = ', perm_cost, ', prev best cost = ', best_perm_cost, 'Improvement (wrt baseline) = ',
                               round(rational_improv), '%' + Fore.RESET)
                         print(Fore.GREEN + '\tAgents to drop shelves:' + Fore.RESET)
@@ -319,7 +352,7 @@ class NonAtomicSolver(object):
 
                 # Reporting
                 completed_perc = round((perm_iteraion + 1) / len(perm_table) * 100)
-                if completed_perc > next_perm_to_report:
+                if completed_perc > next_perm_to_report or (perm_iteraion + 1) == len(perm_table):
                     print(Fore.CYAN + f'Testing task splitting permutations: {completed_perc}%' + Fore.RESET)
                     next_perm_to_report += 10
 
@@ -336,10 +369,19 @@ class NonAtomicSolver(object):
             agents_for_assignments_copy = deepcopy(agents_for_assignments)
             tentative_prohibited_assignments = deepcopy(self.prohibited_assignments)
 
+            # yaron
+            for task in tasks_copy.values():
+                task.delivery_station = stations_copy[task.delivery_pos]
+
             # Creating a new solver instance for not damaging the data consistency of the real solver
             solver = ClassicMAPDSolver(agents_copy, self.baseline_solver.dimensions, self.baseline_solver.obstacles,
                                        self.baseline_solver.non_task_endpoints, self.baseline_solver.a_star_max_iter,
                                        stations_copy)
+
+            # yaron
+            for station in stations_copy.values():
+                station.solver = solver
+
             solver.add_tasks(tasks_copy.values())
             solver.tasks_to_agents = deepcopy(self.baseline_solver.tasks_to_agents)
             solver.agents_to_tasks = deepcopy(self.baseline_solver.agents_to_tasks)
@@ -352,7 +394,9 @@ class NonAtomicSolver(object):
                 # Setting the agent's task state back to PENDING (it was originally ASSIGNED)
                 task_record = solver.tasks[task_name]
                 task_record.task_state = TaskState.PENDING
-                task_record = task_record.delivery_station.unsubscribe_task(task_record)
+                # yaron
+                # task_record = task_record.delivery_station.unsubscribe_task(task_record)
+                task_record.delivery_station.unsubscribe_task(task_name)
 
                 # Since task's shelf position was updated, need to remove all agents->tasks costs that were
                 # involved with this task (since they are no longer valid)
@@ -360,6 +404,8 @@ class NonAtomicSolver(object):
 
                 # Setting the agent's state to FREE
                 agent_record['state'] = AgentState.FREE
+                del agent_record['task_name']
+                del agent_record['goal']
 
                 # Updating task's starting position since its shelf is about to be dropped off at the agent's current position
                 task_record.current_pos = agent_record['current_pos']
@@ -374,12 +420,41 @@ class NonAtomicSolver(object):
                 # Adding the new constraint to prohibitied assignments list
                 tentative_prohibited_assignments.append(constraint)
 
+                # Updating agents_to_tasks and tasks_to_agents mappings
+                del solver.tasks_to_agents[task_name]
+                del solver.agents_to_tasks[agent_name]
+
             # Assigning tasks for the last time
             solver.assign_tasks(agents_for_assignments_copy, tasks_to_assign_copy,
                                                               self.prohibited_assignments + best_negative_assignments)
-            self.baseline_solver.assign_non_task_endpoints_to_free_agents()
+
+            # debug
+            '''
+            print('Tasks to assign:')
+            for task in tasks_to_assign_copy:
+                print(task.task_name)
+            print('Agents for assignment:')
+            for agent in agents_for_assignments_copy:
+                print(agent['name'])
+            '''
+
+            solver.assign_non_task_endpoints_to_free_agents()
             best_agents_for_path_planning = solver.determine_agents_for_path_planning()
             #best_mapf_solution = solver.agents_path_planning(best_agents_for_path_planning)
+
+            '''
+            for agent in solver.agents:
+                if agent['state'] == AgentState.IDLE:
+                    print(agent['name'], ' is IDLE')
+                elif agent['state'] == AgentState.FREE:
+                    print(agent['name'], ' is FREE going to ', agent['goal'])
+                else:
+                    print(agent['name'], 'is ', agent['state'], ' assigned to ', agent['task_name'])
+            print('Shelves:')
+            for shelf in solver.shelves_locations:
+                print(shelf)
+            '''
+
             best_mapf_solution_cost = solver.agents_path_planning(best_agents_for_path_planning, self.short_lns_time_out)
             if best_mapf_solution_cost is not None:
                 # best_mapf_solution_cost = solver.compute_mapf_plan_cost(best_mapf_solution)
@@ -391,6 +466,7 @@ class NonAtomicSolver(object):
                     commit_new_mapf_solution = True
             else:
                 print('WARNING! EXPECTED THAT RECOMMENDED MAPF WILL BE FEASIBLE AND IT IS NOT!')
+                exit(-2)
 
             # Saving statistics about the splitting performance
             rational_improv = (baseline_total_cost - best_mapf_solution_cost) / baseline_total_cost * 100
@@ -464,11 +540,28 @@ class NonAtomicSolver(object):
         print('# free endpoints = ', len(self.baseline_solver.free_non_task_endpoints))
 
     def perform_commit(self, solver, prohibited_assignments):
-        # Commit the agents' paths
-        # commit agent_dict
-        # commit agent_to_tasks
-        # commit tasks_to_agents
-        # commit tasks
+        self.baseline_solver.paths = solver.paths
+        self.baseline_solver.agents = solver.agents
+        self.baseline_solver.agents_dict.clear()
+        for agent_record in self.baseline_solver.agents:
+            self.baseline_solver.agents_dict[agent_record['name']] = agent_record
+        self.baseline_solver.agents_to_tasks = solver.agents_to_tasks
+        self.baseline_solver.tasks_to_agents = solver.tasks_to_agents
+        self.baseline_solver.tasks = solver.tasks
+        self.prohibited_assignments = prohibited_assignments
+        self.baseline_solver.task_assign_cache = solver.task_assign_cache
+        self.baseline_solver.delivery_stations = solver.delivery_stations
+
+        # Resetting each affected agent's path index
+        for agent_name in solver.paths.keys():
+            agent_record = self.baseline_solver.agents_dict[agent_name]
+            agent_record['current_path_index'] = 0
+
+        # Marking the tasks that were induced due to task splitting
+        for assignment in prohibited_assignments:
+            task_name = assignment[1]
+            self.baseline_solver.tasks[task_name].task_type = 1
+        '''
         self.baseline_solver.paths = deepcopy(solver.paths)
         self.baseline_solver.agents = deepcopy(solver.agents)
         self.baseline_solver.agents_dict.clear()
@@ -489,4 +582,5 @@ class NonAtomicSolver(object):
         for assignment in prohibited_assignments:
             task_name = assignment[1]
             self.baseline_solver.tasks[task_name].task_type = 1
+        '''
 
