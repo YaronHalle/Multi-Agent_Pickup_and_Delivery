@@ -74,24 +74,6 @@ class TaskGenerator(object):
                 self.taken_squares.add(tuple([task.pickup_pos[0], task.pickup_pos[1]]))
                 self.taken_squares.add(tuple([task.current_pos[0], task.current_pos[1]]))
 
-        '''
-        for task in current_tasks.values():
-            if task.task_state == TaskState.COMPLETED:
-                continue
-            elif task.task_state == TaskState.DELIVERY2PICKUP:
-                self.taken_squares.add(tuple([task.pickup_pos[0], task.pickup_pos[1]]))
-            else:
-                self.taken_squares.add(tuple([task.current_pos[0], task.current_pos[1]]))
-        '''
-
-
-                # self.taken_squares.add(tuple([task.delivery_pos[0], task.delivery_pos[1]))
-            # if task.task_state == TaskState.PENDING or task.task_state == TaskState.ASSIGNED:
-            #     self.taken_squares.add(tuple([task.start_pos[0], task.start_pos[1]]))
-            #     self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
-            # if task.task_state == TaskState.EXECUTED:
-            #     self.taken_squares.add(tuple([task.goal_pos[0], task.goal_pos[1]]))
-
         for agent in agents:
             current_pos = tuple([agent['current_pos'][0], agent['current_pos'][1]])
             self.taken_squares.add(current_pos)

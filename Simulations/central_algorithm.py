@@ -425,9 +425,9 @@ class ClassicMAPDSolver(object):
                     continue
 
                 # Updating status for agent's state transition BUSY -> FREE
-                task_state = self.tasks[agent['task_name']].task_state
+                task_record = self.tasks[agent['task_name']]
                 if agent['state'] == AgentState.BUSY:
-                    if task_state == TaskState.DELIVERY2PICKUP:
+                    if task_record.task_phase == TaskPhase.DELIVERY2PICKUP:
                         agent['state'] = AgentState.FREE
                         task_name = agent['task_name']
                         completed_task_record = self.tasks[task_name]
@@ -445,7 +445,7 @@ class ClassicMAPDSolver(object):
                     agent['goal'] = task_goal
 
                     # Updating the assigned task status
-                    self.tasks[agent['task_name']].task_state = TaskState.PICKUP2DELIVERY
+                    self.tasks[agent['task_name']].task_state = TaskState.EXECUTED
 
                     # Updating the agent's state to BUSY
                     agent['state'] = AgentState.BUSY
@@ -550,7 +550,8 @@ class ClassicMAPDSolver(object):
                 if task_name not in self.tasks_to_agents:
                     # yaron
                     # task_record = task_record.delivery_station.subscribe_task(task_record)
-                    task_record.delivery_station.subscribe_task(task_name)
+                    if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                        task_record.delivery_station.subscribe_task(task_name)
 
                 # Setting the new assigned task state to ASSIGNED
                 task_record.task_state = TaskState.ASSIGNED
@@ -613,7 +614,8 @@ class ClassicMAPDSolver(object):
                 if unsubscription_needed:
                     # yaron
                     # prev_task_record = prev_task_record.delivery_station.unsubscribe_task(prev_task_record)
-                    prev_task_record.delivery_station.unsubscribe_task(prev_task_record.task_name)
+                    if prev_task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                        prev_task_record.delivery_station.unsubscribe_task(prev_task_record.task_name)
 
                 agent_task_cost.append(
                     [assigned_agent_name, task_name, agent2task_cost[assigned_agent_name][task_name]])
@@ -828,14 +830,14 @@ class ClassicMAPDSolver(object):
                 agent_path_index = agent_record['current_path_index']
                 agent_path_length = len(first_phase_mapf_solution[agent_name]) - agent_path_index - 1
 
-                if task.task_state == TaskState.PICKUP2DELIVERY:
+                if task.task_phase == TaskPhase.PICKUP2DELIVERY:
                     # LNS has computed the path from current location to delivery position. Using Manhattan distance
                     # to estimate the path's length from the delivery to the pickup position
                     path_length_delivery_to_pickup = abs(task.delivery_pos[0] - task.pickup_pos[0]) + \
                                                      abs(task.delivery_pos[1] - task.pickup_pos[1])
                     total_delivery_cost += max(agent_path_length, task_waiting_and_service_time) + \
                                            path_length_delivery_to_pickup
-                elif task.task_state == TaskState.DELIVERY2PICKUP:
+                else:  # task.task_state == TaskState.DELIVERY2PICKUP:
                     total_delivery_cost += agent_path_length
 
         total_plan_cost = total_pickup_cost + total_delivery_cost

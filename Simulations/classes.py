@@ -413,8 +413,10 @@ class DeliveryStation(object):
 
                 # Check if the  current task has finished its processing
                 if self.time_to_finish_current_task == 0:
-                    self.solver.get_tasks()[self.current_processed_task].task_state = TaskState.DELIVERY2PICKUP
+                    task_record = self.solver.get_tasks()[self.current_processed_task]
+                    task_record.task_phase = TaskPhase.DELIVERY2PICKUP
                     agent_record['goal'] = self.solver.get_tasks()[self.current_processed_task].pickup_pos
+                    task_record.current_destination = deepcopy(agent_record['goal'])
                     self.current_processed_task = None
 
                     if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
@@ -423,7 +425,7 @@ class DeliveryStation(object):
         else:
             # Check if there are waiting tasks to be progressed
             if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
-                self.progress_queue(0)
+                self.progress_queue(-1)
 
     '''
         def time_step(self):
