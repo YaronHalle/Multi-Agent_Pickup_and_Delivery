@@ -158,12 +158,13 @@ if __name__ == '__main__':
             station.time_step()
 
             # Debug
+            '''
             tasks_count = 0
             if station.current_processed_task is not None:
                 tasks_count += 1
             tasks_count += len(station.tasks_queue)
             print('No. tasks in station ', station.delivery_pos, ' is ', tasks_count)
-
+            '''
 
         # Keeping record of benchmark statistics
         simulation.compute_statistics()

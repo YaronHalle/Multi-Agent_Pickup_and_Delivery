@@ -9,9 +9,12 @@ class AgentState(IntEnum):
     ENROUTE = 2
     BUSY = 3
 
+
 class TaskPhase(IntEnum):
     PICKUP2DELIVERY = 0
-    DELIVERY2PICKUP = 1
+    IN_DELIVERY_STATION = 1
+    DELIVERY2PICKUP = 2
+
 
 class TaskState(IntEnum):
     PENDING = 0
@@ -145,41 +148,6 @@ class DeliveryStation(object):
                 print('Warning! Exception in DeliveryStation class: unsubscribe_task() was called with an unrecognized task')
                 exit(1)
 
-        #return task
-
-    '''
-        def unsubscribe_task(self, task):
-        """
-        Unsubscribes a previously assigned task
-        :param task: the task to be unsubscribed.
-        :return: the (updated) task
-        """
-        if self.current_processed_task == task:
-            # Unsubscribing the head task which is currently assigned to the delivery station
-            self.current_processed_task = None
-            self.time_to_finish_current_task = 0
-            self.progress_queue(-1)
-        else:
-            task_found = False
-
-            for i in range(len(self.tasks_queue)):
-            # i = 0
-            # while i < len(self.tasks_queue):
-                if self.tasks_queue[i] == task:
-                    task_found = True
-                    self.current_waiting_and_service_time -= self.tasks_service_times[i]
-                    del self.tasks_queue[i]
-                    del self.tasks_service_times[i]
-                    self.progress_queue(i)
-                    break
-
-            # Asserting that the task is in the queue
-            if not task_found:
-                print('Warning! Exception in DeliveryStation class: unsubscribe_task() was called with an unrecognized task')
-                # exit(1)
-
-        return task
-    '''
 
     def subscribe_task(self, task_name):
         """
@@ -221,48 +189,6 @@ class DeliveryStation(object):
                 # The queue is full
                 self.next_waiting_index = None
 
-        # return task
-
-    '''
-        def subscribe_task(self, task):
-        """
-        Subscribes a new task to the delivery station.
-        :param task: a new task to be added.
-        :return: the (updated) task
-        """
-        # Asserting that there's available spot
-        if not self.is_available():
-            print('Exception in DeliveryStation ', self.delivery_pos, ' : subscribe_task() was called without any free spots left')
-            exit(1)
-
-        if self.is_random_service_time:
-            task_service_time = np.random.randint(1, 10, 1)
-        else:
-            task_service_time = self.service_time
-
-        # Checks whether the delivery spot is free and no waiting is required
-        if self.is_delivery_spot_free():
-            # The task can be pointed directly to the delivery spot itself
-            self.current_processed_task = task
-
-            self.time_to_finish_current_task = task_service_time
-            self.current_waiting_and_service_time = self.time_to_finish_current_task
-            task.current_destination = self.delivery_pos
-        else:
-            # The delivery spot is occupied, thus the task is queued
-            task.current_destination = deepcopy(self.waiting_locations[self.next_waiting_index])
-            self.tasks_queue.append(task)
-            self.tasks_service_times.append(task_service_time)
-            self.current_waiting_and_service_time += task_service_time
-
-            # Asserting that queue is not full yet
-            self.next_waiting_index += 1
-            if self.next_waiting_index == self.queue_size:
-                # The queue is full
-                self.next_waiting_index = None
-
-        return task
-    '''
 
     def progress_queue(self, index):
         """
@@ -280,6 +206,12 @@ class DeliveryStation(object):
 
         if index == -1:
             self.current_waiting_and_service_time -= self.time_to_finish_current_task
+
+            # Making sure that the first task in queue has a carrying agent and can be forwarded
+            next_task_name = self.tasks_queue[0]
+            if next_task_name not in self.solver.get_tasks_to_agents():
+                # The first waiting task has no agent to forward it. Therefore, the entire queue is stuck -> stop.
+                return
 
             # Signal the first task waiting in queue to advance towards the delivery post
             next_task_name = self.tasks_queue.pop(0)
@@ -299,6 +231,11 @@ class DeliveryStation(object):
         # Advance any waiting tasks in the queue (if there are any)
         for i in range(queue_progress_start_ind, len(self.tasks_queue)):
             next_task_name = self.tasks_queue[i]
+            # Asserting that the next task in queue has a carrying agent and can be forwarded
+            if next_task_name not in self.solver.get_tasks_to_agents():
+                # No agent carries this pod. Therefore, the rest of the queue is stuck -> break the for loop.
+                break
+
             agent_name = self.solver.get_tasks_to_agents()[next_task_name]
             agent_record = self.solver.get_agents_dict()[agent_name]
             waiting_location = deepcopy(self.waiting_locations[i])
@@ -321,70 +258,6 @@ class DeliveryStation(object):
         if index == len(self.tasks_queue):
             self.next_waiting_index = index
 
-    '''
-        def progress_queue(self, index):
-        """
-        Progresses the waiting tasks in the queue given that a task in position 'index'  is leaving the queue.
-        :param index: the queue index of a task that has finished/unsubscribed:
-               Index == -1 : If the currently processed task is finished/unsubscribed.
-               Index >= 0  : A waiting task in the queue has been unsubscribed.
-        :return: None
-        """
-        # Asserting that there are waiting tasks in the queue, exiting if not
-        if len(self.tasks_queue) == 0:
-            index = 0
-
-        some_agent_moved = False
-
-        if index == -1:
-            self.current_waiting_and_service_time -= self.time_to_finish_current_task
-
-            # Signal the first task waiting in queue to advance towards the delivery post
-            next_task = self.tasks_queue.pop(0)
-            self.current_processed_task = next_task
-            agent_name = self.solver.get_tasks_to_agents()[next_task.task_name]
-            agent_record = self.solver.get_agents_dict()[agent_name]
-            # agent_record['goal'][0] = self.delivery_pos[0]
-            # agent_record['goal'][1] = self.delivery_pos[1]
-            agent_record['goal'] = deepcopy(self.delivery_pos)
-            next_task.current_destination = deepcopy(self.delivery_pos)
-            self.time_to_finish_current_task = self.tasks_service_times.pop(0)
-            some_agent_moved = True
-            queue_progress_start_ind = 0
-
-        else:
-            queue_progress_start_ind = index
-
-        # Reseting the next waiting index if necessary
-        # if len(self.tasks_queue) == 0:
-        #     self.next_waiting_index = 0
-
-        # Advance any waiting tasks in the queue (if there are any)
-        for i in range(queue_progress_start_ind, len(self.tasks_queue)):
-            next_task = self.tasks_queue[i]
-            agent_name = self.solver.get_tasks_to_agents()[next_task.task_name]
-            agent_record = self.solver.get_agents_dict()[agent_name]
-            waiting_location = deepcopy(self.waiting_locations[i])
-            # Asserting that the waiting location is actually free
-            if tuple(waiting_location) not in self.solver.get_shelves_locations():
-                agent_record['goal'] = waiting_location
-                next_task.current_destination = waiting_location
-                some_agent_moved = True
-            else:
-                break  # The queue is stuck, no need to advance the next agents waiting in line
-
-        # If last waiting task has advanced, need to update the index of the next available waiting spot
-        if len(self.tasks_queue) < self.queue_size and some_agent_moved:
-            if self.next_waiting_index is None:
-                self.next_waiting_index = len(self.waiting_locations) - 1
-            else:
-                self.next_waiting_index = max(0, self.next_waiting_index - 1)
-
-        if index == len(self.tasks_queue):
-            self.next_waiting_index = index
-
-    '''
-
     def time_step(self):
         """
         Performs a single time step of the delivery station:
@@ -395,9 +268,8 @@ class DeliveryStation(object):
         """
         if (self.next_waiting_index == None and len(self.tasks_queue) != self.queue_size) or \
                 (self.next_waiting_index is not None and self.next_waiting_index != len(self.tasks_queue)):
-            print('problem at delivery station ',self.delivery_pos)
+            print('problem at delivery station ', self.delivery_pos)
             exit(1)
-
 
 
         # Checking if there's a currently processed task in the delivery spot
@@ -426,45 +298,3 @@ class DeliveryStation(object):
             # Check if there are waiting tasks to be progressed
             if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
                 self.progress_queue(-1)
-
-    '''
-        def time_step(self):
-        """
-        Performs a single time step of the delivery station:
-        1. Decrements the expected service time of the current processed task
-        2. If the currently processed task has finished its service, setting its destination back to the pick-up
-        3. Advancing the waiting tasks in the queue (if there are any)
-        :return: None
-        """
-        if (self.next_waiting_index == None and len(self.tasks_queue) != self.queue_size) or \
-                (self.next_waiting_index is not None and self.next_waiting_index != len(self.tasks_queue)):
-            print('problem at delivery station ',self.delivery_pos)
-            exit(1)
-
-
-
-        # Checking if there's a currently processed task in the delivery spot
-        if self.current_processed_task is not None:
-            # A processed task is in process
-            agent_name = self.solver.get_tasks_to_agents()[self.current_processed_task.task_name]
-            agent_record = self.solver.get_agents_dict()[agent_name]
-
-            # Asserting that agent has actually arrived at the delivery position
-            if agent_record['current_pos'] == self.delivery_pos:
-                self.time_to_finish_current_task -= 1
-                self.current_waiting_and_service_time -= 1
-
-                # Check if the  current task has finished its processing
-                if self.time_to_finish_current_task == 0:
-                    self.solver.get_tasks()[self.current_processed_task.task_name].task_state = TaskState.DELIVERY2PICKUP
-                    agent_record['goal'] = self.solver.get_tasks()[self.current_processed_task.task_name].pickup_pos
-                    self.current_processed_task = None
-
-                    if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
-                        self.progress_queue(-1)
-
-        else:
-            # Check if there are waiting tasks to be progressed
-            if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():
-                self.progress_queue(0)
-    '''

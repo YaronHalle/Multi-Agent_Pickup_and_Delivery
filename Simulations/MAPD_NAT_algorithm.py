@@ -189,7 +189,7 @@ class NonAtomicSolver(object):
         commit_new_mapf_solution = False
         best_solution_cost_so_far = baseline_total_cost
 
-        if len(agents_names_for_task_splitting) > 0 and current_time%10 == 0: # debug
+        if len(agents_names_for_task_splitting) > 0 and current_time%5 == 0: # debug
         # if len(agents_names_for_task_splitting) > 0:
             # Build the permutations table
             t1 = time.time()
@@ -543,9 +543,9 @@ class NonAtomicSolver(object):
                     print('Error: No CBS solution')
             '''
 
-        for task_name in self.baseline_solver.tasks_to_agents:
-            print(task_name, ' --> ', self.baseline_solver.tasks_to_agents[task_name])
-        print('# free endpoints = ', len(self.baseline_solver.free_non_task_endpoints))
+        # for task_name in self.baseline_solver.tasks_to_agents:
+        #     print(task_name, ' --> ', self.baseline_solver.tasks_to_agents[task_name])
+        # print('# free endpoints = ', len(self.baseline_solver.free_non_task_endpoints))
 
     def perform_commit(self, solver, prohibited_assignments):
         self.baseline_solver.paths = solver.paths

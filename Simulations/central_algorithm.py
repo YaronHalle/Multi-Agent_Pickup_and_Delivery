@@ -406,8 +406,11 @@ class ClassicMAPDSolver(object):
                 if agent['state'] == AgentState.BUSY:
                     task = self.tasks[self.agents_to_tasks[agent_name]]
                     task.current_pos = deepcopy(agent['current_pos'])
-            else:
-                print('Warning: trying to move agent to non existing trajectory element')
+            elif agent['state'] == AgentState.BUSY:
+                    task = self.tasks[self.agents_to_tasks[agent_name]]
+                    if task.task_phase != TaskPhase.IN_DELIVERY_STATION:
+                        print('Warning: trying to move agent to non existing trajectory element')
+
             # Updating 'start' property so future CBS searches will take into account
             # the agent's current position
             agent['start'][0] = agent['current_pos'][0]
@@ -437,6 +440,8 @@ class ClassicMAPDSolver(object):
                         del agent['task_name']
                         del self.agents_to_tasks[agent_name]
                         del self.tasks_to_agents[task_name]
+                    elif task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                        task_record.task_phase = TaskPhase.IN_DELIVERY_STATION
 
                 # Updating status for agent's state transition EN-ROUTE -> BUSY
                 if agent['state'] == AgentState.ENROUTE:
@@ -817,8 +822,10 @@ class ClassicMAPDSolver(object):
                 # Adding the delivery cost for enroute agents using the second phase LNS run. Length is multiplied
                 # by 2 since the agent must take the pod to the delivery position and bring it back to the pickup position
                 enroute_agent_path_from_pickup_to_delivery = len(second_phase_mapf_solution[agent_name])
+                path_length_delivery_to_pickup = abs(task.delivery_pos[0] - task.pickup_pos[0]) + \
+                                                 abs(task.delivery_pos[1] - task.pickup_pos[1])
                 total_delivery_cost += max(agent_path_length + enroute_agent_path_from_pickup_to_delivery,
-                                           task_waiting_and_service_time) + enroute_agent_path_from_pickup_to_delivery
+                                           task_waiting_and_service_time) + path_length_delivery_to_pickup
 
             # Summing the delivery paths' cost of BUSY agents
             if agent_record['state'] == AgentState.BUSY:
