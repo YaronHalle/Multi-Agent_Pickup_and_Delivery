@@ -276,20 +276,27 @@ class DeliveryStation(object):
         # Checking if there's a currently processed task in the delivery spot
         if self.current_processed_task is not None:
             # A processed task is in process
-            agent_name = self.solver.get_tasks_to_agents()[self.current_processed_task]
-            agent_record = self.solver.get_agents_dict()[agent_name]
+            task_record = self.solver.get_tasks()[self.current_processed_task]
 
-            # Asserting that agent has actually arrived at the delivery position
-            if agent_record['current_pos'] == self.delivery_pos:
+            # Checking if the pod is carried by some agent (or some agent has dropped this pod and left)
+            is_agent_here = self.current_processed_task in self.solver.get_tasks_to_agents()
+            if is_agent_here:
+                agent_name = self.solver.get_tasks_to_agents()[self.current_processed_task]
+                agent_record = self.solver.get_agents_dict()[agent_name]
+
+            # Asserting that the pod has actually arrived at the delivery position
+            if task_record.current_pos == self.delivery_pos:
                 self.time_to_finish_current_task -= 1
                 self.current_waiting_and_service_time -= 1
 
                 # Check if the  current task has finished its processing
                 if self.time_to_finish_current_task == 0:
-                    task_record = self.solver.get_tasks()[self.current_processed_task]
                     task_record.task_phase = TaskPhase.DELIVERY2PICKUP
-                    agent_record['goal'] = self.solver.get_tasks()[self.current_processed_task].pickup_pos
-                    task_record.current_destination = deepcopy(agent_record['goal'])
+                    pickup_pos_location = deepcopy(self.solver.get_tasks()[self.current_processed_task].pickup_pos)
+                    task_record.current_destination = pickup_pos_location
+                    if is_agent_here:
+                        agent_record['goal'] = pickup_pos_location
+
                     self.current_processed_task = None
 
                     if len(self.tasks_queue) > 0 and self.is_delivery_spot_free():

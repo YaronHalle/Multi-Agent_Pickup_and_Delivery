@@ -189,8 +189,8 @@ class NonAtomicSolver(object):
         commit_new_mapf_solution = False
         best_solution_cost_so_far = baseline_total_cost
 
-        if len(agents_names_for_task_splitting) > 0 and current_time%5 == 0: # debug
-        # if len(agents_names_for_task_splitting) > 0:
+        # if len(agents_names_for_task_splitting) > 0 and current_time%5 == 0: # debug
+        if len(agents_names_for_task_splitting) > 0:
             # Build the permutations table
             t1 = time.time()
             # perm_table = self.build_permutations_table(agents_names_for_task_splitting, len(agents_names_for_task_splitting))
