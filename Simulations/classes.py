@@ -11,9 +11,10 @@ class AgentState(IntEnum):
 
 
 class TaskPhase(IntEnum):
-    PICKUP2DELIVERY = 0
-    IN_DELIVERY_STATION = 1
-    DELIVERY2PICKUP = 2
+    UNSUBSCRIBED = 0
+    PICKUP2DELIVERY = 1
+    IN_DELIVERY_STATION = 2
+    DELIVERY2PICKUP = 3
 
 
 class TaskState(IntEnum):

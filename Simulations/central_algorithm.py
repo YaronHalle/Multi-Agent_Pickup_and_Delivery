@@ -551,15 +551,16 @@ class ClassicMAPDSolver(object):
                 task_record = self.tasks[task_name]
                 assigned_agent_name = list(agent2task_cost.keys())[agent_id[task_i]]
 
-                # Subscribing the task to its corresponding delivery station on first time assignment of agent-task
-                if task_name not in self.tasks_to_agents:
-                    # yaron
-                    # task_record = task_record.delivery_station.subscribe_task(task_record)
-                    if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
-                        task_record.delivery_station.subscribe_task(task_name)
-
                 # Setting the new assigned task state to ASSIGNED
                 task_record.task_state = TaskState.ASSIGNED
+                if task_record.task_phase == TaskPhase.UNSUBSCRIBED:
+                    task_record.delivery_station.subscribe_task(task_name)
+                    task_record.task_phase = TaskPhase.PICKUP2DELIVERY
+
+                # Subscribing the task to its corresponding delivery station on first time assignment of agent-task
+                # if task_name not in self.tasks_to_agents:
+                #     if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                #         task_record.delivery_station.subscribe_task(task_name)
 
                 # Updating the assigned agent goal and status
                 agent_record = self.agents_dict[assigned_agent_name]
@@ -582,9 +583,6 @@ class ClassicMAPDSolver(object):
                         del self.tasks_to_agents[prev_task_name]
                         prev_task_record = self.tasks[prev_task_name]
                         unsubscription_needed = True
-                        # The following line was commented since unsubscription can be only done after tasks_to_agents
-                        # member is populated (else the progress_queue method will fail)
-                        # prev_task_record = task_record.delivery_station.unsubscribe_task(prev_task_record)
 
                 agent_record['task_name'] = task_name
                 self.agents_to_tasks[assigned_agent_name] = task_name
@@ -616,11 +614,9 @@ class ClassicMAPDSolver(object):
                     self.agents_to_tasks[assigned_agent_name] = task_name
                     self.tasks_to_agents[task_name] = assigned_agent_name
 
-                if unsubscription_needed:
-                    # yaron
-                    # prev_task_record = prev_task_record.delivery_station.unsubscribe_task(prev_task_record)
-                    if prev_task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
-                        prev_task_record.delivery_station.unsubscribe_task(prev_task_record.task_name)
+                # if unsubscription_needed:
+                #     if prev_task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                #         prev_task_record.delivery_station.unsubscribe_task(prev_task_record.task_name)
 
                 agent_task_cost.append(
                     [assigned_agent_name, task_name, agent2task_cost[assigned_agent_name][task_name]])

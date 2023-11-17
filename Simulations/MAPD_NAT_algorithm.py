@@ -259,10 +259,8 @@ class NonAtomicSolver(object):
                     task_record = tasks_copy[task_name]
                     task_record.task_state = TaskState.PENDING
                     solver.update_shelves_locations()
-                    # yaron
-                    # task_record = task_record.delivery_station.unsubscribe_task(task_record)
-                    if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
-                        task_record.delivery_station.unsubscribe_task(task_name)
+                    # if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                    #     task_record.delivery_station.unsubscribe_task(task_name)
 
                     # Setting the agent's state to FREE
                     agent_record['state'] = AgentState.FREE
@@ -399,10 +397,8 @@ class NonAtomicSolver(object):
                 task_record = solver.tasks[task_name]
                 task_record.task_state = TaskState.PENDING
                 solver.update_shelves_locations()
-                # yaron
-                # task_record = task_record.delivery_station.unsubscribe_task(task_record)
-                if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
-                    task_record.delivery_station.unsubscribe_task(task_name)
+                # if task_record.task_phase == TaskPhase.PICKUP2DELIVERY:
+                #     task_record.delivery_station.unsubscribe_task(task_name)
 
                 # Since task's shelf position was updated, need to remove all agents->tasks costs that were
                 # involved with this task (since they are no longer valid)
